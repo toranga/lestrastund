@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="is">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lestrarstund</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Fredoka:wght@500;600&display=swap">
+<style>
+/* Layout: one big reading card in the middle, three chunky tabs above, grown-up buttons below. Fjord blue + egg-yolk yellow, like a winter morning in Reykjavík. */
+:root{
+  --bg:#eef4f8; --card:#ffffff; --ink:#1d3247; --soft:#5d7186;
+  --fjord:#2a6fb0; --yolk:#ffc93c; --yolk-ink:#4a3600;
+  --good:#2f9e63; --again:#e0683f; --line:#d5e1ea;
+  --f-display:"Fredoka","Trebuchet MS",system-ui,sans-serif;
+  --f-read:"Andika","Verdana",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1a25; --card:#172636; --ink:#e8f0f7; --soft:#9db1c4;
+  --fjord:#6aa9e3; --yolk:#ffcf4d; --yolk-ink:#3a2a00;
+  --good:#4cc485; --again:#f08a64; --line:#26394c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1a25; --card:#172636; --ink:#e8f0f7; --soft:#9db1c4;
+  --fjord:#6aa9e3; --yolk:#ffcf4d; --yolk-ink:#3a2a00;
+  --good:#4cc485; --again:#f08a64; --line:#26394c; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-read);padding-inline:16px;padding-block:16px 32px}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+h1{font-family:var(--f-display);font-weight:600;font-size:1.8rem;margin:0;color:var(--fjord);text-wrap:balance}
+.stars{font-family:var(--f-display);font-size:1.25rem;background:var(--yolk);color:var(--yolk-ink);border-radius:999px;padding:6px 14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stars.pop{animation:pop .45s ease}
+@keyframes pop{40%{transform:scale(1.25)}}
+
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tabs button{font-family:var(--f-display);font-size:1.15rem;font-weight:600;padding:12px 6px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--fjord);border-color:var(--fjord);color:var(--card)}
+
+.stage{background:var(--card);border-radius:28px;padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 6px 0 var(--line)}
+.big{font-size:clamp(5.5rem,30vw,9rem);line-height:1;font-weight:700;letter-spacing:.04em}
+.word{font-size:clamp(3.4rem,18vw,5.5rem);line-height:1.1;font-weight:700;letter-spacing:.06em}
+.pic{font-size:3.4rem;line-height:1}
+.hint{font-size:1.5rem;color:var(--soft)}
+.hint b{color:var(--fjord)}
+.count{font-size:.95rem;color:var(--soft);font-variant-numeric:tabular-nums}
+
+.nav{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap}
+.btn{font-family:var(--f-display);font-weight:600;font-size:1.2rem;border:0;border-radius:18px;padding:14px 20px;cursor:pointer;min-height:56px}
+.btn:focus-visible,.tabs button:focus-visible,.day:focus-visible{outline:3px solid var(--yolk);outline-offset:3px}
+.arrow{background:var(--bg);color:var(--ink);font-size:1.6rem;min-width:64px}
+.listen{background:var(--bg);color:var(--fjord)}
+.grown{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.good{background:var(--good);color:#fff}
+.again{background:var(--again);color:#fff}
+.note{font-size:.95rem;color:var(--soft);text-align:center;max-width:42ch;margin:0 auto}
+.flash{font-family:var(--f-display);font-size:1.4rem;min-height:1.8rem;text-align:center}
+
+.log{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;width:100%}
+.day{border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:18px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;font-family:var(--f-read)}
+.day .d{font-family:var(--f-display);font-weight:600}
+.day .s{font-size:.9rem;color:var(--soft);font-variant-numeric:tabular-nums}
+.day .mark{font-size:1.8rem;min-height:2.2rem}
+.day.read{border-color:var(--good)}
+.day.today .d{color:var(--fjord)}
+.novoice{background:var(--bg);color:var(--soft);font-size:1rem}
+
+.voice{background:var(--card);border:3px solid var(--yolk);border-radius:24px;padding:20px 18px;display:flex;flex-direction:column;gap:12px}
+.voice h2{font-family:var(--f-display);font-weight:600;font-size:1.35rem;margin:0;color:var(--ink);text-wrap:balance}
+.voice p{margin:0;line-height:1.5;max-width:60ch}
+.voice .device{font-size:.85rem;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
+.voice ol{margin:0;padding-left:1.4em;display:flex;flex-direction:column;gap:8px;line-height:1.45}
+.voice a{color:var(--fjord);font-weight:700}
+.voice .row{display:flex;gap:10px;flex-wrap:wrap}
+.voice .row .btn{flex:1 1 140px}
+.check{background:var(--fjord);color:var(--card)}
+.later{background:var(--bg);color:var(--ink)}
+.voice .status{font-size:.95rem;color:var(--soft)}
+.voice .status:empty{display:none}
+[hidden]{display:none!important}
+body{margin:0;font-size:14px}
+.mic{background:var(--yolk);color:var(--yolk-ink);width:100%;font-size:1.35rem;min-height:64px}
+.mic.on{animation:pulse 1.1s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.03);box-shadow:0 0 0 8px color-mix(in srgb,var(--yolk) 35%,transparent)}}
+.heard{font-size:1rem;color:var(--soft);text-align:center;min-height:1.3em}
+@media (prefers-reduced-motion:reduce){.mic.on{animation:none}}
+@media (prefers-reduced-motion:reduce){.stars.pop{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Lestrarstund</h1>
+    <div class="stars" id="stars" aria-live="polite">⭐ 0</div>
+  </header>
+
+  <section class="voice" id="voicePanel" hidden aria-labelledby="voiceTitle">
+    <div class="device" id="voiceDevice"></div>
+    <h2 id="voiceTitle">Íslensk rödd vantar</h2>
+    <p>Til að „Hlusta“ virki þarf tækið að hafa íslenska rödd. Vefsíða má ekki setja hana upp sjálf, en það tekur bara eina mínútu að gera það í stillingunum:</p>
+    <ol id="voiceSteps"></ol>
+    <p id="voiceExtra"></p>
+    <div class="row">
+      <button class="btn check" id="voiceCheck">Athuga aftur</button>
+      <button class="btn later" id="voiceLater">Seinna</button>
+    </div>
+    <div class="status" id="voiceStatus" aria-live="polite"></div>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button id="t-stafir" role="tab" aria-selected="true" data-tab="stafir">Stafir</button>
+    <button id="t-ord" role="tab" aria-selected="false" data-tab="ord">Orð</button>
+    <button id="t-dagbok" role="tab" aria-selected="false" data-tab="dagbok">Dagbók</button>
+  </div>
+
+  <section class="stage" id="practice">
+    <div class="pic" id="pic" aria-hidden="true"></div>
+    <div class="big" id="main"></div>
+    <div class="hint" id="hint"></div>
+    <div class="nav">
+      <button class="btn arrow" id="prev" aria-label="Fyrri">←</button>
+      <button class="btn listen" id="listen" hidden>🔊 Hlusta</button>
+      <button class="btn novoice" id="novoice" hidden>🔇 Setja upp rödd</button>
+      <button class="btn arrow" id="next" aria-label="Næsti">→</button>
+    </div>
+    <div class="count" id="count"></div>
+    <div class="flash" id="flash" aria-live="polite"></div>
+    <button class="btn mic" id="mic" hidden>🎤 Hlustaðu á mig</button>
+    <div class="heard" id="heard" aria-live="polite"></div>
+    <div class="grown">
+      <button class="btn good" id="good">Rétt!</button>
+      <button class="btn again" id="again">Reynum aftur</button>
+    </div>
+    <p class="note">Fyrir foreldri: hún les upphátt og þú ýtir á hnappinn.</p>
+  </section>
+
+  <section class="stage" id="diary" hidden>
+    <div class="hint">Las ég í dag? Ýttu á daginn.</div>
+    <div class="log" id="log"></div>
+    <p class="note">Stjörnurnar fyrir hvern dag koma sjálfkrafa þegar ýtt er á „Rétt!“.</p>
+  </section>
+
+</div>
+
+<script>
+const LETTERS=[
+ ["A","a","api","🐵"],["Á","á","álft","🦢"],["B","b","bíll","🚗"],["D","d","dúkka","🪆"],
+ ["Ð","ð","bað","🛁"],["E","e","epli","🍎"],["É","é","ég","🙋"],["F","f","fiskur","🐟"],
+ ["G","g","geit","🐐"],["H","h","hestur","🐴"],["I","i","ilmur","🌸"],["Í","í","ís","🍦"],
+ ["J","j","jól","🎄"],["K","k","köttur","🐱"],["L","l","lamb","🐑"],["M","m","mús","🐭"],
+ ["N","n","nef","👃"],["O","o","ostur","🧀"],["Ó","ó","ólífa","🫒"],["P","p","pera","🍐"],
+ ["R","r","rós","🌹"],["S","s","sól","☀️"],["T","t","tré","🌳"],["U","u","ugla","🦉"],
+ ["Ú","ú","úr","⌚"],["V","v","vatn","💧"],["X","x","lax","🐟"],["Y","y","yfir","⬆️"],
+ ["Ý","ý","ýsa","🐠"],["Þ","þ","þak","🏠"],["Æ","æ","æfing","🤸"],["Ö","ö","önd","🦆"]
+];
+const WORDS=[
+ ["sól","☀️"],["ís","🍦"],["mús","🐭"],["hús","🏠"],["nef","👃"],["api","🐵"],["úr","⌚"],
+ ["bók","📖"],["bað","🛁"],["kýr","🐄"],["tré","🌳"],["rós","🌹"],["lamb","🐑"],["epli","🍎"],
+ ["mamma","👩"],["pabbi","👨"],["ég",""],["og",""],["já",""],["nei",""]
+];
+const DAYS=["sun","mán","þri","mið","fim","fös","lau"];
+
+// per-device storage, safe if blocked
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+             set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let state=store.get("lestrarstund",{total:0,days:{}});
+let tab="stafir", iL=0, iW=0;
+const $=id=>document.getElementById(id);
+const todayKey=()=>{const d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()};
+const keyOf=d=>d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
+
+function save(){store.set("lestrarstund",state)}
+function showStars(pop){const s=$("stars");s.textContent="⭐ "+state.total;if(pop){s.classList.remove("pop");void s.offsetWidth;s.classList.add("pop")}}
+
+function render(){
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
+  $("practice").hidden=tab==="dagbok"; $("diary").hidden=tab!=="dagbok";
+  $("flash").textContent="";
+  if(tab==="stafir"){
+    const [U,l,w,p]=LETTERS[iL];
+    $("main").className="big"; $("main").textContent=U+l;
+    $("pic").textContent=p;
+    $("hint").innerHTML=w.replace(new RegExp(l),"<b>"+l+"</b>");
+    $("count").textContent=(iL+1)+" / "+LETTERS.length;
+  }else if(tab==="ord"){
+    const [w,p]=WORDS[iW];
+    $("main").className="word"; $("main").textContent=w;
+    $("pic").textContent=p; $("hint").textContent="";
+    $("count").textContent=(iW+1)+" / "+WORDS.length;
+  }else renderLog();
+}
+
+function renderLog(){
+  const log=$("log"); log.innerHTML="";
+  for(let i=6;i>=0;i--){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    const k=keyOf(d), info=state.days[k]||{read:false,stars:0};
+    const b=document.createElement("button");
+    b.className="day"+(info.read?" read":"")+(i===0?" today":"");
+    b.id="day-"+k;
+    b.innerHTML=`<span class="d">${i===0?"Í dag":DAYS[d.getDay()]+" "+d.getDate()+"."}</span>
+      <span class="mark">${info.read?"🌟":""}</span><span class="s">${info.stars} ⭐</span>`;
+    b.setAttribute("aria-pressed",info.read);
+    b.onclick=()=>{const cur=state.days[k]||{read:false,stars:0};cur.read=!cur.read;state.days[k]=cur;save();renderLog()};
+    log.appendChild(b);
+  }
+}
+
+function step(dir){
+  if(tab==="stafir") iL=(iL+dir+LETTERS.length)%LETTERS.length;
+  else iW=(iW+dir+WORDS.length)%WORDS.length;
+  render();
+}
+
+function award(){
+  state.total++; const k=todayKey(); const cur=state.days[k]||{read:false,stars:0};
+  cur.stars++; cur.read=true; state.days[k]=cur; save(); showStars(true);
+  const praise=["Frábært!","Vel gert!","Snillingur!","Flott!"];
+  $("flash").textContent=praise[Math.floor(Math.random()*praise.length)]+" ⭐";
+  setTimeout(()=>{$("heard").textContent="";step(1)},1100);
+}
+$("good").onclick=award;
+
+// Microphone check (Chrome's speech recognition, Icelandic).
+// It checks whether the right word was heard; the parent's buttons still have the final say.
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null, listening=false;
+const norm=s=>(s||"").toLocaleLowerCase("is").replace(/[^a-záðéíóúýþæö\s]/g," ").replace(/\s+/g," ").trim();
+function target(){return tab==="stafir"?LETTERS[iL][2]:WORDS[iW][0]}
+function stopMic(){listening=false;$("mic").classList.remove("on");$("mic").textContent="🎤 Hlustaðu á mig"}
+if(SR){
+  $("mic").hidden=false;
+  $("mic").onclick=()=>{
+    if(listening){try{rec.stop()}catch(e){}return}
+    try{speechSynthesis.cancel()}catch(e){}
+    rec=new SR(); rec.lang="is-IS"; rec.interimResults=false; rec.maxAlternatives=5; rec.continuous=false;
+    const want=norm(target());
+    let got=false;
+    rec.onresult=e=>{
+      got=true;
+      const alts=[...e.results[0]].map(a=>norm(a.transcript));
+      const ok=alts.some(a=>(" "+a+" ").includes(" "+want+" "));
+      if(ok){$("heard").textContent="Ég heyrði: „"+want+"“ ✔";award()}
+      else{
+        $("heard").textContent=alts[0]?"Ég heyrði: „"+alts[0]+"“":"";
+        $("flash").textContent="Reynum aftur, þú getur þetta!";
+      }
+    };
+    rec.onerror=e=>{
+      const msg={"not-allowed":"Leyfðu hljóðnemann í vafranum (lásinn við vefslóðina) og reyndu aftur.",
+        "service-not-allowed":"Leyfðu hljóðnemann í vafranum og reyndu aftur.",
+        "no-speech":"Ég heyrði ekkert. Reyndu aftur og talaðu skýrt.",
+        "network":"Það þarf nettengingu til að hlusta.",
+        "language-not-supported":"Þessi vafri skilur ekki íslensku. Prófaðu Chrome."}[e.error];
+      if(msg) $("heard").textContent=msg;
+      got=true; stopMic();
+    };
+    rec.onend=()=>{if(!got) $("heard").textContent="Ég heyrði ekkert. Reyndu aftur.";stopMic()};
+    $("heard").textContent=tab==="stafir"?"Segðu orðið: "+target():"";
+    $("flash").textContent="";
+    listening=true;$("mic").classList.add("on");$("mic").textContent="👂 Ég er að hlusta…";
+    try{rec.start()}catch(e){stopMic()}
+  };
+}
+$("again").onclick=()=>{ $("flash").textContent="Reynum aftur, þú getur þetta!"; if(voice) say(); };
+$("prev").onclick=()=>{$("heard").textContent="";step(-1)};
+$("next").onclick=()=>{$("heard").textContent="";step(1)};
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});
+
+// Read-aloud only if the device has an Icelandic voice.
+// Letters are spoken by their Icelandic names, because voices read a lone capital letter badly.
+const NAMES={A:"a",Á:"á",B:"bé",D:"dé",Ð:"eð",E:"e",É:"é",F:"eff",G:"ge",H:"há",I:"i",Í:"í",J:"joð",K:"ká",L:"ell",
+  M:"emm",N:"enn",O:"o",Ó:"ó",P:"pé",R:"err",S:"ess",T:"té",U:"u",Ú:"ú",V:"vaff",X:"ex",Y:"ufsilon i",Ý:"ufsilon í",Þ:"þorn",Æ:"æ",Ö:"ö"};
+const RATE=0.6; // slow and clear for a beginner
+let voice=null, panelDismissed=false, checkedOnce=false;
+function findVoice(){
+  try{
+    const v=speechSynthesis.getVoices().filter(x=>/^is([-_]|$)/i.test(x.lang));
+    // prefer the higher-quality voices when the device has several
+    const rank=x=>(/google|enhanced|premium|natural|neural/i.test(x.name)?2:0)+(x.localService?0:1);
+    return v.sort((a,b)=>rank(b)-rank(a))[0]||null;
+  }catch(e){return null}
+}
+function pickVoice(){
+  voice=findVoice();
+  $("listen").hidden=!voice;
+  $("novoice").hidden=!!voice || !checkedOnce;
+  if(voice) $("voicePanel").hidden=true;
+  else if(checkedOnce && !panelDismissed) showVoicePanel();
+}
+
+// Which device is this? iPads report themselves as a Mac with a touchscreen.
+function deviceKind(){
+  const ua=navigator.userAgent||"";
+  if(/Android/i.test(ua)) return "android";
+  if(/iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints>1)) return "ios";
+  if(/Windows|Macintosh|CrOS|Linux/.test(ua)) return "computer";
+  return "other";
+}
+const GUIDES={
+  android:{
+    label:"Android spjaldtölva eða sími",
+    steps:[
+      "Opnaðu <b>Stillingar</b> (Settings) í tækinu.",
+      "Leitaðu að <b>Texti í tal</b> (Text-to-speech output) og opnaðu það.",
+      "Veldu <b>Talþjónustu Google</b> (Speech Services by Google) sem vél. Samsung-tæki gætu fyrst sýnt Samsung-vélina, skiptu henni út.",
+      "Ýttu á tannhjólið ⚙️ og svo <b>Setja upp raddgögn</b> (Install voice data).",
+      "Veldu <b>Íslenska (Ísland)</b> og sæktu röddina.",
+      "Lokaðu vafranum alveg, opnaðu appið aftur og ýttu á <b>Athuga aftur</b>."
+    ],
+    extra:'Vantar Talþjónustu Google? <a href="https://play.google.com/store/apps/details?id=com.google.android.tts" target="_blank" rel="noopener">Sæktu hana í Play Store</a>. Appið virkar best í Chrome.'
+  },
+  ios:{
+    label:"iPad eða iPhone",
+    steps:[
+      "Opnaðu <b>Stillingar</b> (Settings).",
+      "Farðu í <b>Aðgengi</b> (Accessibility) → <b>Upplesið efni</b> (Spoken Content) → <b>Raddir</b> (Voices).",
+      "Leitaðu að <b>Íslensku</b> á listanum. Ef hún er þar, sæktu röddina.",
+      "Lokaðu Safari alveg, opnaðu appið aftur og ýttu á <b>Athuga aftur</b>."
+    ],
+    extra:"Ef íslenska er ekki á listanum býður þetta tæki ekki upp á íslenska rödd. Þá les foreldrið orðin upphátt og appið virkar alveg eins. Allir vafrar á iPad nota sömu raddir, svo annar vafri hjálpar ekki."
+  },
+  computer:{
+    label:"Tölva",
+    steps:[
+      "Opnaðu appið í <b>Microsoft Edge</b>. Edge er yfirleitt með íslenskar raddir á netinu (Guðrún og Gunnar).",
+      "Gakktu úr skugga um að tölvan sé nettengd, því þessar raddir koma af netinu.",
+      "Ýttu á <b>Athuga aftur</b>."
+    ],
+    extra:"Chrome og Safari á tölvu eru oftast ekki með íslenska rödd."
+  },
+  other:{
+    label:"Þetta tæki",
+    steps:[
+      "Opnaðu stillingar tækisins og leitaðu að <b>Texti í tal</b> (Text-to-speech).",
+      "Bættu við <b>íslensku</b> ef hún er í boði.",
+      "Opnaðu appið aftur og ýttu á <b>Athuga aftur</b>."
+    ],
+    extra:""
+  }
+};
+function showVoicePanel(){
+  const kind=deviceKind(), g=GUIDES[kind];
+  let steps=g.steps.slice(), extra=g.extra;
+  if(kind==="computer" && /Edg\//.test(navigator.userAgent)){
+    steps=["Þú ert nú þegar í Edge. Athugaðu að tölvan sé nettengd.","Endurhladdu síðuna og ýttu svo á <b>Athuga aftur</b>."];
+  }
+  if(!("speechSynthesis" in window)){
+    steps=["Þessi vafri getur ekki lesið upphátt. Prófaðu annan vafra, t.d. Chrome á Android eða Edge á tölvu."]; extra="";
+  }
+  $("voiceDevice").textContent=g.label;
+  $("voiceSteps").innerHTML=steps.map(s=>"<li>"+s+"</li>").join("");
+  $("voiceExtra").innerHTML=extra; $("voiceExtra").hidden=!extra;
+  $("voiceStatus").textContent="";
+  $("voicePanel").hidden=false;
+}
+$("voiceLater").onclick=()=>{panelDismissed=true;$("voicePanel").hidden=true;$("novoice").hidden=!!voice};
+$("novoice").onclick=()=>{panelDismissed=false;showVoicePanel();$("voicePanel").scrollIntoView({behavior:"smooth",block:"start"})};
+$("voiceCheck").onclick=()=>{
+  $("voiceStatus").textContent="Athuga…";
+  // voices can take a moment to load, so look twice
+  setTimeout(()=>{
+    pickVoice();
+    if(voice){
+      $("voicePanel").hidden=true;
+      $("flash").textContent="Íslensk rödd fannst! 🔊";
+      speakParts(["Halló."]);
+    }else $("voiceStatus").textContent="Engin íslensk rödd fannst enn. Kláraðu skrefin hér fyrir ofan og reyndu aftur.";
+  },700);
+};
+function speakParts(parts){
+  try{
+    speechSynthesis.cancel();
+    parts.forEach((t,i)=>{
+      const u=new SpeechSynthesisUtterance(t);
+      u.voice=voice;u.lang=voice.lang;u.rate=RATE;u.pitch=1.05;
+      speechSynthesis.speak(u);
+    });
+  }catch(e){}
+}
+function say(){
+  if(!voice) return;
+  if(tab==="stafir"){const [U,,w]=LETTERS[iL]; speakParts([NAMES[U]+".", w+".", w+"."]);}
+  else{const w=WORDS[iW][0]; speakParts([w+".", w+"."]);}
+}
+$("listen").onclick=say;
+// Voices load late on some devices, so wait a moment before saying one is missing.
+try{
+  if("speechSynthesis" in window){
+    pickVoice(); speechSynthesis.onvoiceschanged=pickVoice;
+    setTimeout(()=>{checkedOnce=true;pickVoice()},1500);
+    // re-check when coming back from the settings app
+    document.addEventListener("visibilitychange",()=>{if(!document.hidden) setTimeout(pickVoice,500)});
+  }else{checkedOnce=true;$("novoice").hidden=false;showVoicePanel()}
+}catch(e){}
+
+showStars(false); render();
+</script>
+</body>
+</html>
