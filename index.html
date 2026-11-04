@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- the online Icelandic voice only answers requests that carry no referrer -->
+<meta name="referrer" content="no-referrer">
 <title>Lestrarstund</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Fredoka:wght@500;600&display=swap">
@@ -232,7 +234,7 @@ if(SR){
   $("mic").hidden=false;
   $("mic").onclick=()=>{
     if(listening){try{rec.stop()}catch(e){}return}
-    try{speechSynthesis.cancel()}catch(e){}
+    try{speechSynthesis.cancel();stopAudio()}catch(e){}
     rec=new SR(); rec.lang="is-IS"; rec.interimResults=false; rec.maxAlternatives=5; rec.continuous=false;
     const want=norm(target());
     let got=false;
@@ -262,7 +264,7 @@ if(SR){
     try{rec.start()}catch(e){stopMic()}
   };
 }
-$("again").onclick=()=>{ $("flash").textContent="Reynum aftur, þú getur þetta!"; if(voice) say(); };
+$("again").onclick=()=>{ $("flash").textContent="Reynum aftur, þú getur þetta!"; if(canSpeak()) say(); };
 $("prev").onclick=()=>{$("heard").textContent="";step(-1)};
 $("next").onclick=()=>{$("heard").textContent="";step(1)};
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});
@@ -281,12 +283,41 @@ function findVoice(){
     return v.sort((a,b)=>rank(b)-rank(a))[0]||null;
   }catch(e){return null}
 }
+// Fallback when the device has no Icelandic voice (e.g. Chrome on a computer):
+// play Google's Icelandic voice as audio clips. Needs an internet connection.
+const ONLINE_RATE=0.8;
+let online=false, onlineChecked=false, clip=null, clipQueue=[];
+const onlineUrl=t=>"https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=is&q="+encodeURIComponent(t);
+function probeOnline(){
+  return new Promise(res=>{
+    const a=new Audio(); let done=false;
+    const fin=ok=>{if(done)return;done=true;online=ok;onlineChecked=true;res(ok)};
+    a.onloadedmetadata=()=>fin(true); a.onerror=()=>fin(false);
+    a.src=onlineUrl("já"); setTimeout(()=>fin(false),6000);
+  });
+}
+function stopAudio(){clipQueue=[];if(clip){try{clip.pause()}catch(e){}clip=null}}
+function playOnline(parts){
+  stopAudio(); clipQueue=parts.slice();
+  const next=()=>{
+    if(!clipQueue.length){clip=null;return}
+    const a=new Audio(onlineUrl(clipQueue.shift().replace(/\.$/,"")));
+    a.playbackRate=ONLINE_RATE; a.preservesPitch=true; clip=a;
+    a.onended=()=>setTimeout(()=>{if(clip===a) next()},350);
+    a.onerror=()=>{if(clip===a) next()};
+    a.play().catch(()=>{});
+  };
+  next();
+}
+const canSpeak=()=>!!voice||online;
+
 function pickVoice(){
   voice=findVoice();
-  $("listen").hidden=!voice;
-  $("novoice").hidden=!!voice || !checkedOnce;
-  if(voice) $("voicePanel").hidden=true;
-  else if(checkedOnce && !panelDismissed) showVoicePanel();
+  const ok=canSpeak();
+  $("listen").hidden=!ok;
+  $("novoice").hidden=ok || !checkedOnce;
+  if(ok) $("voicePanel").hidden=true;
+  else if(checkedOnce && onlineChecked && !panelDismissed) showVoicePanel();
 }
 
 // Which device is this? iPads report themselves as a Mac with a touchscreen.
@@ -354,44 +385,48 @@ function showVoicePanel(){
   $("voiceStatus").textContent="";
   $("voicePanel").hidden=false;
 }
-$("voiceLater").onclick=()=>{panelDismissed=true;$("voicePanel").hidden=true;$("novoice").hidden=!!voice};
+$("voiceLater").onclick=()=>{panelDismissed=true;$("voicePanel").hidden=true;$("novoice").hidden=canSpeak()};
 $("novoice").onclick=()=>{panelDismissed=false;showVoicePanel();$("voicePanel").scrollIntoView({behavior:"smooth",block:"start"})};
 $("voiceCheck").onclick=()=>{
   $("voiceStatus").textContent="Athuga…";
-  // voices can take a moment to load, so look twice
-  setTimeout(()=>{
+  // voices can take a moment to load, so look twice; also retry the online voice
+  setTimeout(async()=>{
+    if(!voice && !online) await probeOnline();
     pickVoice();
-    if(voice){
+    if(canSpeak()){
       $("voicePanel").hidden=true;
       $("flash").textContent="Íslensk rödd fannst! 🔊";
       speakParts(["Halló."]);
-    }else $("voiceStatus").textContent="Engin íslensk rödd fannst enn. Kláraðu skrefin hér fyrir ofan og reyndu aftur.";
+    }else $("voiceStatus").textContent="Engin íslensk rödd fannst enn. Athugaðu nettenginguna eða kláraðu skrefin hér fyrir ofan.";
   },700);
 };
 function speakParts(parts){
-  try{
-    speechSynthesis.cancel();
-    parts.forEach((t,i)=>{
-      const u=new SpeechSynthesisUtterance(t);
-      u.voice=voice;u.lang=voice.lang;u.rate=RATE;u.pitch=1.05;
-      speechSynthesis.speak(u);
-    });
-  }catch(e){}
+  if(voice){
+    try{
+      stopAudio(); speechSynthesis.cancel();
+      parts.forEach(t=>{
+        const u=new SpeechSynthesisUtterance(t);
+        u.voice=voice;u.lang=voice.lang;u.rate=RATE;u.pitch=1.05;
+        speechSynthesis.speak(u);
+      });
+    }catch(e){}
+  }else if(online) playOnline(parts);
 }
 function say(){
-  if(!voice) return;
+  if(!canSpeak()) return;
   if(tab==="stafir"){const [U,,w]=LETTERS[iL]; speakParts([NAMES[U]+".", w+".", w+"."]);}
   else{const w=WORDS[iW][0]; speakParts([w+".", w+"."]);}
 }
 $("listen").onclick=say;
 // Voices load late on some devices, so wait a moment before saying one is missing.
+probeOnline().then(pickVoice);
 try{
   if("speechSynthesis" in window){
     pickVoice(); speechSynthesis.onvoiceschanged=pickVoice;
     setTimeout(()=>{checkedOnce=true;pickVoice()},1500);
     // re-check when coming back from the settings app
     document.addEventListener("visibilitychange",()=>{if(!document.hidden) setTimeout(pickVoice,500)});
-  }else{checkedOnce=true;$("novoice").hidden=false;showVoicePanel()}
+  }else{checkedOnce=true;pickVoice()}
 }catch(e){}
 
 showStars(false); render();
