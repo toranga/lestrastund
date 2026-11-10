@@ -344,6 +344,8 @@ function listenWord(r){
   $("heard").textContent=tab==="stafir"?"Segðu orðið: "+target():"";
 }
 
+// How long to wait (ms) before she starts reading, and after each word, before judging the sentence.
+const SENT_START_WAIT=12000, SENT_WORD_WAIT=6000;
 function listenSentence(r){
   r.continuous=true; r.interimResults=true;
   const words=SENTENCES[iS][0].split(" ").map(norm);
@@ -361,26 +363,32 @@ function listenSentence(r){
     else{btns.forEach(b=>b.classList.toggle("miss",!heard.has(b.dataset.w)));
          notYet("Næstum! Lestu aftur orðin sem eru ekki græn.")}
   };
-  // Wait longer before she starts, and a little after each word – beginners pause between words.
+  // Beginners pause between words, so wait a good while after each one.
   const wait=ms=>{clearTimeout(timer);timer=setTimeout(finish,ms)};
+  r.finish=finish; // pressing the button again means "I'm done"
   r.onresult=e=>{
     if(rec!==r||done) return;
     for(let i=0;i<e.results.length;i++)
       for(const a of e.results[i]) norm(a.transcript).split(" ").forEach(w=>{if(words.includes(w)) heard.add(w)});
     mark();
-    if(words.every(w=>heard.has(w))) finish(); else wait(3000);
+    if(words.every(w=>heard.has(w))) finish(); else wait(SENT_WORD_WAIT);
   };
   r.onerror=e=>{
     if(rec!==r||done) return;
-    if(e.error==="no-speech"||e.error==="aborted") return finish();
+    if(e.error==="no-speech"||e.error==="aborted") return; // a pause, not a problem – onend restarts
     done=true; clearTimeout(timer);
     if(MIC_ERRORS[e.error]) $("heard").textContent=MIC_ERRORS[e.error];
     stopMic();
   };
-  // Chrome sometimes stops on its own after a pause; judge what was heard so far.
-  r.onend=()=>finish();
+  // Chrome stops listening by itself after a few quiet seconds. If our own wait isn't over,
+  // quietly start again and keep the words already heard.
+  r.onend=()=>{
+    if(done||rec!==r) return;
+    setTimeout(()=>{if(done||rec!==r) return; try{r.start()}catch(e){finish()}},100);
+  };
   $("heard").textContent="Lestu setninguna upphátt.";
-  r.onstart=()=>wait(9000);
+  let started=false;
+  r.onstart=()=>{if(!started){started=true;wait(SENT_START_WAIT)}};
 }
 
 if(SR){
@@ -388,7 +396,7 @@ if(SR){
   $("mic").onclick=()=>{
     if(listening){
       // Pressing again while reading a sentence means "I'm done" – judge what was heard.
-      if(rec&&tab==="setn"){try{rec.stop()}catch(e){}}
+      if(rec&&rec.finish) rec.finish();
       else abortMic();
       return;
     }
