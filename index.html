@@ -288,27 +288,32 @@ if(SR){
     rec=new SR(); rec.lang="is-IS"; rec.interimResults=false; rec.maxAlternatives=5; rec.continuous=false;
     const want=norm(target());
     let got=false;
+    // Every "not right" outcome gets the same sound and wiggle: a wrong word, no match, or nothing heard.
+    const notYet=heard=>{
+      got=true;
+      $("heard").textContent=heard;
+      $("flash").textContent="Reynum aftur, þú getur þetta!";
+      tryAgainSound(); animate("nope");
+    };
     rec.onresult=e=>{
       got=true;
       const alts=[...e.results[0]].map(a=>norm(a.transcript));
       const ok=alts.some(a=>(" "+a+" ").includes(" "+want+" "));
       if(ok){$("heard").textContent="Ég heyrði: „"+want+"“ ✔";award()}
-      else{
-        $("heard").textContent=alts[0]?"Ég heyrði: „"+alts[0]+"“":"";
-        $("flash").textContent="Reynum aftur, þú getur þetta!";
-        tryAgainSound(); animate("nope");
-      }
+      else notYet(alts[0]?"Ég heyrði: „"+alts[0]+"“":"");
     };
+    rec.onnomatch=()=>notYet("Ég skildi það ekki alveg.");
     rec.onerror=e=>{
       const msg={"not-allowed":"Leyfðu hljóðnemann í vafranum (lásinn við vefslóðina) og reyndu aftur.",
         "service-not-allowed":"Leyfðu hljóðnemann í vafranum og reyndu aftur.",
         "no-speech":"Ég heyrði ekkert. Reyndu aftur og talaðu skýrt.",
         "network":"Það þarf nettengingu til að hlusta.",
         "language-not-supported":"Þessi vafri skilur ekki íslensku. Prófaðu Chrome."}[e.error];
-      if(msg) $("heard").textContent=msg;
+      if(e.error==="no-speech") notYet(msg);
+      else if(msg) $("heard").textContent=msg;
       got=true; stopMic();
     };
-    rec.onend=()=>{if(!got) $("heard").textContent="Ég heyrði ekkert. Reyndu aftur.";stopMic()};
+    rec.onend=()=>{if(!got && listening) notYet("Ég heyrði ekkert. Reyndu aftur.");stopMic()};
     $("heard").textContent=tab==="stafir"?"Segðu orðið: "+target():"";
     $("flash").textContent="";
     listening=true;$("mic").classList.add("on");$("mic").textContent="👂 Ég er að hlusta…";
