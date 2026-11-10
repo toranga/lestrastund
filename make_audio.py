@@ -13,6 +13,8 @@ Usage (run inside the lestrarstund-web folder):
     python make_audio.py --engine tiro --voice Alfur
     python make_audio.py --list-voices   # show Tiró's voices
     python make_audio.py --force         # remake clips that already exist
+    python make_audio.py --try api       # make several versions of one word to compare,
+                                         # in candidates/ with a page to listen to them
 
 To replace a clip with your own recording, save it under the same name in
 audio/ and the app will play it. Run without --force so it isn't overwritten.
@@ -73,6 +75,43 @@ def edge_say(text, voice, rate, path):
     import edge_tts
     asyncio.run(edge_tts.Communicate(text, voice, rate=rate).save(str(path)))
 
+def google_say(text, path):
+    import requests, urllib.parse
+    url = ("https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=is&q="
+           + urllib.parse.quote(text))
+    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+    r.raise_for_status()
+    if len(r.content) < 500:
+        raise RuntimeError("audio too short")
+    path.write_bytes(r.content)
+
+def try_word(word):
+    """Several versions of one word, to pick the one that sounds right."""
+    out = Path("candidates"); out.mkdir(exist_ok=True)
+    cap = word[:1].upper() + word[1:] + "."
+    variants = [
+        ("Guðrún, eins og núna", lambda p: edge_say(word, "is-IS-GudrunNeural", "-20%", p)),
+        (f"Guðrún, „{cap}“",     lambda p: edge_say(cap, "is-IS-GudrunNeural", "-20%", p)),
+        ("Guðrún, venjulegur hraði", lambda p: edge_say(word, "is-IS-GudrunNeural", "+0%", p)),
+        ("Gunnar",               lambda p: edge_say(word, "is-IS-GunnarNeural", "-20%", p)),
+        (f"Gunnar, „{cap}“",     lambda p: edge_say(cap, "is-IS-GunnarNeural", "-20%", p)),
+        ("Google",               lambda p: google_say(word, p)),
+    ]
+    rows = []
+    for i, (label, make) in enumerate(variants, 1):
+        name = f"{slug(word)}-{i}.mp3"
+        try:
+            make(out / name)
+            rows.append(f'<li><b>{i}.</b> {label}<br><audio controls preload="none" src="{name}"></audio></li>')
+            print(f"  ✓ {i}. {label}")
+        except Exception as e:
+            print(f"  ✗ {i}. {label}: {e}")
+    page = (f'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>„{word}“</title><body style="font:18px system-ui;max-width:32em;margin:2em auto;padding:0 1em">'
+            f'<h1>„{word}“</h1><p>Hlustaðu og veldu besta númerið.</p>'
+            f'<ol style="list-style:none;padding:0;display:grid;gap:1em">{"".join(rows)}</ol>')
+    (out / f"{slug(word)}.html").write_text(page, encoding="utf-8")
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--engine", choices=["auto", "tiro", "edge"], default="auto")
@@ -81,7 +120,12 @@ def main():
     ap.add_argument("--out", default="audio")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--list-voices", action="store_true")
+    ap.add_argument("--try", dest="try_word", metavar="WORD", help="make versions of one word to compare")
     a = ap.parse_args()
+
+    if a.try_word:
+        try_word(a.try_word)
+        return
 
     if a.list_voices:
         for v in tiro_voices():
