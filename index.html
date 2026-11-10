@@ -376,7 +376,7 @@ function closeEnough(said,want){
   return s===w || (w.length>=3 && oneOff(s,w));
 }
 // How long to wait (ms) before she starts reading, and after each word, before judging the sentence.
-const SENT_START_WAIT=12000, SENT_WORD_WAIT=6000;
+const SENT_START_WAIT=4000, SENT_WORD_WAIT=4000;
 function listenSentence(r){
   r.continuous=true; r.interimResults=true;
   const words=SENTENCES[iS][0].split(" ").map(norm);
