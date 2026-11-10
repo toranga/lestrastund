@@ -336,11 +336,18 @@ const MIC_ERRORS={"not-allowed":"Leyfðu hljóðnemann í vafranum (lásinn við
 // Stop listening without a verdict, e.g. when moving to another card.
 function abortMic(){const r=rec;rec=null;if(r){try{r.abort()}catch(e){}}stopMic()}
 
+// Letters and words: stop listening after this many ms of silence (before she starts, or after she stops talking).
+const WORD_WAIT=4000;
 function listenWord(r){
   const want=norm(target());
-  let got=false;
+  let got=false, timer=null;
+  // Stopping makes Chrome judge what it has heard so far; if nothing, onend says "heard nothing".
+  const wait=()=>{clearTimeout(timer);timer=setTimeout(()=>{if(rec===r){try{r.stop()}catch(e){}}},WORD_WAIT)};
+  r.onstart=wait;
+  r.onspeechstart=()=>clearTimeout(timer);   // she's talking – don't cut her off
+  r.onspeechend=wait;
   r.onresult=e=>{
-    if(rec!==r) return; got=true;
+    if(rec!==r) return; got=true; clearTimeout(timer);
     const alts=[...e.results[0]].map(a=>norm(a.transcript));
     const ok=alts.some(a=>(" "+a+" ").includes(" "+want+" "));
     if(ok){$("heard").textContent="Ég heyrði: „"+want+"“ ✔";award()}
@@ -353,7 +360,7 @@ function listenWord(r){
     else if(MIC_ERRORS[e.error]) $("heard").textContent=MIC_ERRORS[e.error];
     stopMic();
   };
-  r.onend=()=>{if(rec!==r) return; if(!got && listening) notYet("Ég heyrði ekkert. Reyndu aftur.");stopMic()};
+  r.onend=()=>{clearTimeout(timer); if(rec!==r) return; if(!got && listening) notYet("Ég heyrði ekkert. Reyndu aftur.");stopMic()};
   $("heard").textContent=tab==="stafir"?"Segðu orðið: "+target():"";
 }
 
