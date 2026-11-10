@@ -357,6 +357,24 @@ function listenWord(r){
   $("heard").textContent=tab==="stafir"?"Segðu orðið: "+target():"";
 }
 
+// Chrome often writes a word a little differently (les → lest, less, læs; ég → eg).
+// For sentences we accept those near-misses: same word without accents, or one letter off for words of 3+ letters.
+const plain=w=>w.replace(/ð/g,"d").replace(/þ/g,"th").replace(/æ/g,"ae").replace(/ö/g,"o").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+function oneOff(a,b){
+  if(Math.abs(a.length-b.length)>1) return false;
+  let i=0,j=0,edits=0;
+  while(i<a.length&&j<b.length){
+    if(a[i]===b[j]){i++;j++;continue}
+    if(++edits>1) return false;
+    if(a.length>b.length) i++; else if(b.length>a.length) j++; else {i++;j++}
+  }
+  return edits+(a.length-i)+(b.length-j)<=1;
+}
+function closeEnough(said,want){
+  if(said===want) return true;
+  const s=plain(said), w=plain(want);
+  return s===w || (w.length>=3 && oneOff(s,w));
+}
 // How long to wait (ms) before she starts reading, and after each word, before judging the sentence.
 const SENT_START_WAIT=12000, SENT_WORD_WAIT=6000;
 function listenSentence(r){
@@ -364,7 +382,7 @@ function listenSentence(r){
   const words=SENTENCES[iS][0].split(" ").map(norm);
   const btns=[...$("main").querySelectorAll(".w")];
   btns.forEach(b=>b.classList.remove("hit","miss"));
-  const heard=new Set(); let timer=null, done=false;
+  const heard=new Set(); let timer=null, done=false, said="", saidBefore="";
   const mark=()=>btns.forEach(b=>b.classList.toggle("hit",heard.has(b.dataset.w)));
   const finish=()=>{
     if(done||rec!==r) return; done=true; clearTimeout(timer);
@@ -376,7 +394,8 @@ function listenSentence(r){
       // Every try that doesn't get the whole sentence counts – wrong words, some words, or nothing heard.
       btns.forEach(b=>b.classList.toggle("miss",!heard.has(b.dataset.w)));
       sentFails++;
-      notYet(heard.size?"Næstum! Lestu aftur orðin sem eru ekki græn.":"Ég heyrði ekki orðin. Reyndu aftur.");
+      notYet((heard.size?"Næstum! Lestu aftur orðin sem eru ekki græn.":"Ég heyrði ekki orðin. Reyndu aftur.")
+             +(said?" (Ég heyrði: „"+norm(said)+"“)":""));
       if(sentFails===HELP_AFTER){
         $("flash").textContent="Nú máttu hlusta 🔊 – ýttu á Hlusta eða á orð.";
         updateListen();
@@ -388,8 +407,18 @@ function listenSentence(r){
   r.finish=finish; // pressing the button again means "I'm done"
   r.onresult=e=>{
     if(rec!==r||done) return;
-    for(let i=0;i<e.results.length;i++)
-      for(const a of e.results[i]) norm(a.transcript).split(" ").forEach(w=>{if(words.includes(w)) heard.add(w)});
+    for(let i=0;i<e.results.length;i++){
+      for(const a of e.results[i]){
+        const ws=norm(a.transcript).split(" ");
+        // also try neighbouring words glued together, in case Chrome splits one word in two
+        ws.forEach((x,k)=>{const glued=x+(ws[k+1]||"");
+          words.forEach(w=>{if(closeEnough(x,w)||closeEnough(glued,w)) heard.add(w)})});
+        // or glues two words into one ("égles")
+        ws.forEach(x=>words.forEach((w,k)=>{if(words[k+1]&&closeEnough(x,w+words[k+1])){heard.add(w);heard.add(words[k+1])}}));
+      }
+    }
+    // what Chrome heard, shown if the try fails (sessions restart after pauses, so keep earlier parts)
+    said=(saidBefore+" "+[...e.results].map(x=>x[0].transcript).join(" ")).trim();
     mark();
     if(words.every(w=>heard.has(w))) finish(); else wait(SENT_WORD_WAIT);
   };
@@ -404,6 +433,7 @@ function listenSentence(r){
   // quietly start again and keep the words already heard.
   r.onend=()=>{
     if(done||rec!==r) return;
+    saidBefore=said;
     setTimeout(()=>{if(done||rec!==r) return; try{r.start()}catch(e){finish()}},100);
   };
   $("heard").textContent="Lestu setninguna upphátt.";
