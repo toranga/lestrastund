@@ -372,15 +372,15 @@ function listenSentence(r){
     stopMic();
     const missed=words.filter(w=>!heard.has(w));
     if(!missed.length){sentFails=0;$("heard").textContent="Ég heyrði alla setninguna ✔";award()}
-    else if(!heard.size) notYet("Ég heyrði ekkert. Reyndu aftur."); // silence isn't counted as a try
     else{
+      // Every try that doesn't get the whole sentence counts – wrong words, some words, or nothing heard.
       btns.forEach(b=>b.classList.toggle("miss",!heard.has(b.dataset.w)));
       sentFails++;
+      notYet(heard.size?"Næstum! Lestu aftur orðin sem eru ekki græn.":"Ég heyrði ekki orðin. Reyndu aftur.");
       if(sentFails===HELP_AFTER){
-        notYet("Næstum! Lestu aftur orðin sem eru ekki græn.");
         $("flash").textContent="Nú máttu hlusta 🔊 – ýttu á Hlusta eða á orð.";
         updateListen();
-      }else notYet("Næstum! Lestu aftur orðin sem eru ekki græn.");
+      }
     }
   };
   // Beginners pause between words, so wait a good while after each one.
