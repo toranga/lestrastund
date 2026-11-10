@@ -84,6 +84,15 @@ body{margin:0;font-size:14px}
 .heard{font-size:1rem;color:var(--soft);text-align:center;min-height:1.3em}
 @media (prefers-reduced-motion:reduce){.mic.on{animation:none}}
 @media (prefers-reduced-motion:reduce){.stars.pop{animation:none}}
+/* Right: the letter jumps and turns green, stars burst out. Not yet: a gentle wiggle. */
+.stage{position:relative;overflow:hidden}
+#main.yay{animation:yay .7s ease;color:var(--good)}
+@keyframes yay{0%{transform:scale(1)}30%{transform:scale(1.25) rotate(-4deg)}55%{transform:scale(.95) rotate(3deg)}100%{transform:scale(1)}}
+#main.nope{animation:nope .45s ease}
+@keyframes nope{20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}
+.burst{position:absolute;left:50%;top:38%;font-size:2rem;pointer-events:none;animation:burst 1.1s ease-out forwards}
+@keyframes burst{0%{transform:translate(-50%,-50%) scale(.4);opacity:1}100%{transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(1.2) rotate(var(--r));opacity:0}}
+@media (prefers-reduced-motion:reduce){#main.yay,#main.nope{animation:none}.burst{display:none}}
 </style>
 </head>
 <body>
@@ -213,7 +222,40 @@ function award(){
   cur.stars++; cur.read=true; state.days[k]=cur; save(); showStars(true);
   const praise=["Frábært!","Vel gert!","Snillingur!","Flott!"];
   $("flash").textContent=praise[Math.floor(Math.random()*praise.length)]+" ⭐";
-  setTimeout(()=>{$("heard").textContent="";step(1)},1100);
+  yaySound(); animate("yay"); starBurst();
+  setTimeout(()=>{$("heard").textContent="";step(1)},1800);
+}
+function animate(cls){const m=$("main");m.classList.remove("yay","nope");void m.offsetWidth;m.classList.add(cls);
+  setTimeout(()=>m.classList.remove(cls),900)}
+function starBurst(){
+  const st=$("practice"), em=["⭐","🌟","✨","🎉","⭐","💛"];
+  for(let i=0;i<14;i++){
+    const e=document.createElement("span"), a=Math.PI*2*i/14+Math.random()*.4, d=110+Math.random()*90;
+    e.className="burst"; e.textContent=em[i%em.length]; e.setAttribute("aria-hidden","true");
+    e.style.setProperty("--x",Math.cos(a)*d+"px"); e.style.setProperty("--y",Math.sin(a)*d+"px");
+    e.style.setProperty("--r",(Math.random()*360-180)+"deg");
+    st.appendChild(e); setTimeout(()=>e.remove(),1200);
+  }
+}
+// Sounds are made in the browser, no files needed.
+function tone(f,start,dur,type,vol,toF){
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==="suspended") actx.resume();
+    const t=actx.currentTime+start, o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.setValueAtTime(f,t); if(toF) o.frequency.linearRampToValueAtTime(toF,t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t+dur+0.05);
+  }catch(e){}
+}
+// Right: a happy rising tune (C–E–G–high C) with a little sparkle on top.
+function yaySound(){
+  [523,659,784].forEach((f,i)=>tone(f,i*0.1,0.16,"triangle",0.3));
+  tone(1047,0.3,0.5,"triangle",0.32); tone(2093,0.32,0.35,"sine",0.06);
+}
+// Not yet: two soft, falling notes – friendly, not a buzzer.
+function tryAgainSound(){
+  tone(392,0,0.22,"sine",0.25); tone(330,0.24,0.32,"sine",0.25,294);
 }
 
 // Microphone check (Chrome's speech recognition, Icelandic).
@@ -254,6 +296,7 @@ if(SR){
       else{
         $("heard").textContent=alts[0]?"Ég heyrði: „"+alts[0]+"“":"";
         $("flash").textContent="Reynum aftur, þú getur þetta!";
+        tryAgainSound(); animate("nope");
       }
     };
     rec.onerror=e=>{
