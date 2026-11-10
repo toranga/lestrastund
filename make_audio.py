@@ -20,7 +20,7 @@ Usage (run inside the lestrarstund-web folder):
 To replace a clip with your own recording, save it under the same name in
 audio/ and the app will play it. Run without --force so it isn't overwritten.
 """
-import argparse, asyncio, json, sys
+import argparse, asyncio, json, re, sys
 from pathlib import Path
 
 # Same lists as in index.html
@@ -33,6 +33,16 @@ LETTER_WORDS = ["api","álft","bíll","dúkka","bað","epli","ég","fiskur","gei
 WORDS = ["sól","ís","mús","hús","nef","api","úr","bók","bað","kýr","tré","rós","lamb","epli",
          "mamma","pabbi","ég","og","já","nei"]
 EXTRA = ["Halló"]
+
+# Sentences are read from index.html, so adding one there is enough.
+def sentences():
+    html = Path(__file__).with_name("index.html")
+    if not html.exists(): return []
+    m = re.search(r"const SENTENCES=(\[.*?\]);", html.read_text(encoding="utf-8"), re.S)
+    return [row[0] for row in json.loads(m.group(1))] if m else []
+
+def norm(text):  # same as norm() in index.html
+    return " ".join(re.sub(r"[^a-záðéíóúýþæö\s]", " ", text.lower()).split())
 
 # File name for each clip. Must match slug() in index.html.
 MAP = {"á":"a1","é":"e1","í":"i1","ó":"o1","ú":"u1","ý":"y1","ð":"d1","þ":"th1","æ":"ae1","ö":"o2"," ":"_"}
@@ -133,7 +143,9 @@ def main():
             print(v.get("VoiceId"), "-", v.get("Gender"), v.get("LanguageName", ""))
         return
 
-    texts = list(dict.fromkeys(list(NAMES.values()) + LETTER_WORDS + WORDS + EXTRA))
+    sents = sentences()
+    sent_words = [w for t in sents for w in norm(t).split()]
+    texts = list(dict.fromkeys(list(NAMES.values()) + LETTER_WORDS + WORDS + EXTRA + sents + sent_words))
     out = Path(a.out); out.mkdir(exist_ok=True)
 
     engine, tiro_voice = a.engine, None

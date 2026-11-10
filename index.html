@@ -35,13 +35,19 @@ h1{font-family:var(--f-display);font-weight:600;font-size:1.8rem;margin:0;color:
 .stars.pop{animation:pop .45s ease}
 @keyframes pop{40%{transform:scale(1.25)}}
 
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.tabs button{font-family:var(--f-display);font-size:1.15rem;font-weight:600;padding:12px 6px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.tabs button{font-family:var(--f-display);font-size:clamp(.9rem,3.6vw,1.15rem);font-weight:600;padding:12px 6px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--fjord);border-color:var(--fjord);color:var(--card)}
 
 .stage{background:var(--card);border-radius:28px;padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:14px;box-shadow:0 6px 0 var(--line)}
 .big{font-size:clamp(5.5rem,30vw,9rem);line-height:1;font-weight:700;letter-spacing:.04em}
 .word{font-size:clamp(3.4rem,18vw,5.5rem);line-height:1.1;font-weight:700;letter-spacing:.06em}
+/* Sentences: each word is its own button – tap it to hear it. Words turn green as they're heard. */
+.sentence{display:flex;flex-wrap:wrap;justify-content:center;gap:.15em .45em;font-size:clamp(2.2rem,10vw,3.4rem);line-height:1.2;font-weight:700;text-align:center}
+.sentence .w{font:inherit;color:inherit;background:none;border:0;padding:.05em .12em;border-radius:12px;cursor:pointer;border-bottom:4px solid transparent;transition:color .2s,background .2s}
+.sentence .w:hover{background:var(--bg)}
+.sentence .w.hit{color:var(--good)}
+.sentence .w.miss{border-bottom-color:var(--again)}
 .pic{font-size:3.4rem;line-height:1}
 .hint{font-size:1.5rem;color:var(--soft)}
 .hint b{color:var(--fjord)}
@@ -118,6 +124,7 @@ body{margin:0;font-size:14px}
   <div class="tabs" role="tablist">
     <button id="t-stafir" role="tab" aria-selected="true" data-tab="stafir">Stafir</button>
     <button id="t-ord" role="tab" aria-selected="false" data-tab="ord">Orð</button>
+    <button id="t-setn" role="tab" aria-selected="false" data-tab="setn">Setningar</button>
     <button id="t-dagbok" role="tab" aria-selected="false" data-tab="dagbok">Dagbók</button>
   </div>
 
@@ -163,13 +170,20 @@ const WORDS=[
  ["bók","📖"],["bað","🛁"],["kýr","🐄"],["tré","🌳"],["rós","🌹"],["lamb","🐑"],["epli","🍎"],
  ["mamma","👩"],["pabbi","👨"],["ég",""],["og",""],["já",""],["nei",""]
 ];
+// Easy sentences, easiest first. make_audio.py reads this list too, so new sentences get audio automatically.
+const SENTENCES=[
+ ["Ég les.","📖"],["Ég á ís.","🍦"],["Hér er rós.","🌹"],["Ég sé sól.","☀️"],
+ ["Pabbi er hér.","👨"],["Mamma les bók.","👩"],["Sólin skín.","🌞"],["Mús er í húsi.","🐭"],
+ ["Kýrin segir mú.","🐄"],["Lambið er úti.","🐑"],["Ísinn er kaldur.","🍦"],["Tréð er stórt.","🌳"],
+ ["Fiskurinn syndir.","🐟"],["Önd syndir í vatni.","🦆"],["Ég elska mömmu.","❤️"],["Góða nótt, pabbi.","🌙"]
+];
 const DAYS=["sun","mán","þri","mið","fim","fös","lau"];
 
 // per-device storage, safe if blocked
 const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
              set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let state=store.get("lestrarstund",{total:0,days:{}});
-let tab="stafir", iL=0, iW=0;
+let tab="stafir", iL=0, iW=0, iS=0;
 const $=id=>document.getElementById(id);
 const todayKey=()=>{const d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()};
 const keyOf=d=>d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
@@ -192,6 +206,18 @@ function render(){
     $("main").className="word"; $("main").textContent=w;
     $("pic").textContent=p; $("hint").textContent="";
     $("count").textContent=(iW+1)+" / "+WORDS.length;
+  }else if(tab==="setn"){
+    const [t,p]=SENTENCES[iS];
+    $("main").className="sentence"; $("main").innerHTML="";
+    t.split(" ").forEach(w=>{
+      const b=document.createElement("button");
+      b.className="w"; b.textContent=w; b.dataset.w=norm(w);
+      b.setAttribute("aria-label","Hlusta á "+norm(w));
+      b.onclick=()=>speakParts([norm(w)]);
+      $("main").appendChild(b);
+    });
+    $("pic").textContent=p; $("hint").textContent="";
+    $("count").textContent=(iS+1)+" / "+SENTENCES.length;
   }else renderLog();
 }
 
@@ -213,6 +239,7 @@ function renderLog(){
 
 function step(dir){
   if(tab==="stafir") iL=(iL+dir+LETTERS.length)%LETTERS.length;
+  else if(tab==="setn") iS=(iS+dir+SENTENCES.length)%SENTENCES.length;
   else iW=(iW+dir+WORDS.length)%WORDS.length;
   render();
 }
@@ -260,6 +287,8 @@ function tryAgainSound(){
 
 // Microphone check (Chrome's speech recognition, Icelandic).
 // It checks whether the right word was heard and gives a star when it was.
+// Sentences: it keeps listening while she reads word by word, turns each word green as it's heard,
+// and stops when all words are heard or after a short silence.
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let rec=null, listening=false;
 const norm=s=>(s||"").toLocaleLowerCase("is").replace(/[^a-záðéíóúýþæö\s]/g," ").replace(/\s+/g," ").trim();
@@ -280,49 +309,101 @@ function beep(){
   });
 }
 function stopMic(){listening=false;$("mic").classList.remove("on");$("mic").textContent="🎤 Hlustaðu á mig"}
+// Every "not right" outcome gets the same sound and wiggle: a wrong word, no match, or nothing heard.
+function notYet(heard){
+  $("heard").textContent=heard;
+  $("flash").textContent="Reynum aftur, þú getur þetta!";
+  tryAgainSound(); animate("nope");
+}
+const MIC_ERRORS={"not-allowed":"Leyfðu hljóðnemann í vafranum (lásinn við vefslóðina) og reyndu aftur.",
+  "service-not-allowed":"Leyfðu hljóðnemann í vafranum og reyndu aftur.",
+  "no-speech":"Ég heyrði ekkert. Reyndu aftur og talaðu skýrt.",
+  "network":"Það þarf nettengingu til að hlusta.",
+  "language-not-supported":"Þessi vafri skilur ekki íslensku. Prófaðu Chrome."};
+// Stop listening without a verdict, e.g. when moving to another card.
+function abortMic(){const r=rec;rec=null;if(r){try{r.abort()}catch(e){}}stopMic()}
+
+function listenWord(r){
+  const want=norm(target());
+  let got=false;
+  r.onresult=e=>{
+    if(rec!==r) return; got=true;
+    const alts=[...e.results[0]].map(a=>norm(a.transcript));
+    const ok=alts.some(a=>(" "+a+" ").includes(" "+want+" "));
+    if(ok){$("heard").textContent="Ég heyrði: „"+want+"“ ✔";award()}
+    else notYet(alts[0]?"Ég heyrði: „"+alts[0]+"“":"");
+  };
+  r.onnomatch=()=>{if(rec!==r) return; got=true; notYet("Ég skildi það ekki alveg.")};
+  r.onerror=e=>{
+    if(rec!==r) return; got=true;
+    if(e.error==="no-speech") notYet(MIC_ERRORS[e.error]);
+    else if(MIC_ERRORS[e.error]) $("heard").textContent=MIC_ERRORS[e.error];
+    stopMic();
+  };
+  r.onend=()=>{if(rec!==r) return; if(!got && listening) notYet("Ég heyrði ekkert. Reyndu aftur.");stopMic()};
+  $("heard").textContent=tab==="stafir"?"Segðu orðið: "+target():"";
+}
+
+function listenSentence(r){
+  r.continuous=true; r.interimResults=true;
+  const words=SENTENCES[iS][0].split(" ").map(norm);
+  const btns=[...$("main").querySelectorAll(".w")];
+  btns.forEach(b=>b.classList.remove("hit","miss"));
+  const heard=new Set(); let timer=null, done=false;
+  const mark=()=>btns.forEach(b=>b.classList.toggle("hit",heard.has(b.dataset.w)));
+  const finish=()=>{
+    if(done||rec!==r) return; done=true; clearTimeout(timer);
+    try{r.stop()}catch(e){}
+    stopMic();
+    const missed=words.filter(w=>!heard.has(w));
+    if(!missed.length){$("heard").textContent="Ég heyrði alla setninguna ✔";award()}
+    else if(!heard.size) notYet("Ég heyrði ekkert. Reyndu aftur.");
+    else{btns.forEach(b=>b.classList.toggle("miss",!heard.has(b.dataset.w)));
+         notYet("Næstum! Lestu aftur orðin sem eru ekki græn.")}
+  };
+  // Wait longer before she starts, and a little after each word – beginners pause between words.
+  const wait=ms=>{clearTimeout(timer);timer=setTimeout(finish,ms)};
+  r.onresult=e=>{
+    if(rec!==r||done) return;
+    for(let i=0;i<e.results.length;i++)
+      for(const a of e.results[i]) norm(a.transcript).split(" ").forEach(w=>{if(words.includes(w)) heard.add(w)});
+    mark();
+    if(words.every(w=>heard.has(w))) finish(); else wait(3000);
+  };
+  r.onerror=e=>{
+    if(rec!==r||done) return;
+    if(e.error==="no-speech"||e.error==="aborted") return finish();
+    done=true; clearTimeout(timer);
+    if(MIC_ERRORS[e.error]) $("heard").textContent=MIC_ERRORS[e.error];
+    stopMic();
+  };
+  // Chrome sometimes stops on its own after a pause; judge what was heard so far.
+  r.onend=()=>finish();
+  $("heard").textContent="Lestu setninguna upphátt.";
+  r.onstart=()=>wait(9000);
+}
+
 if(SR){
   $("mic").hidden=false;
   $("mic").onclick=()=>{
-    if(listening){try{rec.stop()}catch(e){}stopMic();return}
+    if(listening){
+      // Pressing again while reading a sentence means "I'm done" – judge what was heard.
+      if(rec&&tab==="setn"){try{rec.stop()}catch(e){}}
+      else abortMic();
+      return;
+    }
     stopSpeaking();
-    rec=new SR(); rec.lang="is-IS"; rec.interimResults=false; rec.maxAlternatives=5; rec.continuous=false;
-    const want=norm(target());
-    let got=false;
-    // Every "not right" outcome gets the same sound and wiggle: a wrong word, no match, or nothing heard.
-    const notYet=heard=>{
-      got=true;
-      $("heard").textContent=heard;
-      $("flash").textContent="Reynum aftur, þú getur þetta!";
-      tryAgainSound(); animate("nope");
-    };
-    rec.onresult=e=>{
-      got=true;
-      const alts=[...e.results[0]].map(a=>norm(a.transcript));
-      const ok=alts.some(a=>(" "+a+" ").includes(" "+want+" "));
-      if(ok){$("heard").textContent="Ég heyrði: „"+want+"“ ✔";award()}
-      else notYet(alts[0]?"Ég heyrði: „"+alts[0]+"“":"");
-    };
-    rec.onnomatch=()=>notYet("Ég skildi það ekki alveg.");
-    rec.onerror=e=>{
-      const msg={"not-allowed":"Leyfðu hljóðnemann í vafranum (lásinn við vefslóðina) og reyndu aftur.",
-        "service-not-allowed":"Leyfðu hljóðnemann í vafranum og reyndu aftur.",
-        "no-speech":"Ég heyrði ekkert. Reyndu aftur og talaðu skýrt.",
-        "network":"Það þarf nettengingu til að hlusta.",
-        "language-not-supported":"Þessi vafri skilur ekki íslensku. Prófaðu Chrome."}[e.error];
-      if(e.error==="no-speech") notYet(msg);
-      else if(msg) $("heard").textContent=msg;
-      got=true; stopMic();
-    };
-    rec.onend=()=>{if(!got && listening) notYet("Ég heyrði ekkert. Reyndu aftur.");stopMic()};
-    $("heard").textContent=tab==="stafir"?"Segðu orðið: "+target():"";
+    const r=new SR(); rec=r; r.lang="is-IS"; r.interimResults=false; r.maxAlternatives=5; r.continuous=false;
+    if(tab==="setn") listenSentence(r); else listenWord(r);
     $("flash").textContent="";
-    listening=true;$("mic").classList.add("on");$("mic").textContent="👂 Ég er að hlusta…";
-    beep().then(()=>{if(listening){try{rec.start()}catch(e){stopMic()}}});
+    listening=true;$("mic").classList.add("on");
+    $("mic").textContent=tab==="setn"?"👂 Ég er að hlusta… (ýttu þegar þú ert búin)":"👂 Ég er að hlusta…";
+    beep().then(()=>{if(listening&&rec===r){try{r.start()}catch(e){stopMic()}}});
   };
 }
-$("prev").onclick=()=>{$("heard").textContent="";stopSpeaking();step(-1)};
-$("next").onclick=()=>{$("heard").textContent="";stopSpeaking();step(1)};
-document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;stopSpeaking();render()});
+$("prev").onclick=()=>{$("heard").textContent="";stopSpeaking();abortMic();step(-1)};
+$("next").onclick=()=>{$("heard").textContent="";stopSpeaking();abortMic();step(1)};
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;$("heard").textContent="";stopSpeaking();abortMic();render()});
 
 // Read-aloud, best voice first:
 // 1) Ready-made clips in audio/ (made once with make_audio.py, or your own recordings) – same voice on every device.
@@ -398,6 +479,7 @@ function speakParts(parts){
 function say(){
   if(!canSpeak()) return;
   if(tab==="stafir"){const [U,,w]=LETTERS[iL]; speakParts([NAMES[U], w, w]);}
+  else if(tab==="setn") speakParts([SENTENCES[iS][0]]);
   else{const w=WORDS[iW][0]; speakParts([w, w]);}
 }
 $("listen").onclick=say;
