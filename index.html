@@ -45,7 +45,9 @@ h1{font-family:var(--f-display);font-weight:600;font-size:1.8rem;margin:0;color:
 /* Sentences: each word is its own button – tap it to hear it. Words turn green as they're heard. */
 .sentence{display:flex;flex-wrap:wrap;justify-content:center;gap:.15em .45em;font-size:clamp(2.2rem,10vw,3.4rem);line-height:1.2;font-weight:700;text-align:center}
 .sentence .w{font:inherit;color:inherit;background:none;border:0;padding:.05em .12em;border-radius:12px;cursor:pointer;border-bottom:4px solid transparent;transition:color .2s,background .2s}
-.sentence .w:hover{background:var(--bg)}
+.sentence .w{cursor:default}
+.sentence.helped .w{cursor:pointer}
+.sentence.helped .w:hover{background:var(--bg)}
 .sentence .w.hit{color:var(--good)}
 .sentence .w.miss{border-bottom-color:var(--again)}
 .pic{font-size:3.4rem;line-height:1}
@@ -184,6 +186,10 @@ const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v)
              set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let state=store.get("lestrarstund",{total:0,days:{}});
 let tab="stafir", iL=0, iW=0, iS=0;
+// Sentences: she reads on her own first. After 3 tries in a row that miss words, the listen help appears.
+const HELP_AFTER=3;
+let sentFails=0;
+const sentHelp=()=>sentFails>=HELP_AFTER;
 const $=id=>document.getElementById(id);
 const todayKey=()=>{const d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()};
 const keyOf=d=>d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
@@ -212,13 +218,19 @@ function render(){
     t.split(" ").forEach(w=>{
       const b=document.createElement("button");
       b.className="w"; b.textContent=w; b.dataset.w=norm(w);
-      b.setAttribute("aria-label","Hlusta á "+norm(w));
-      b.onclick=()=>speakParts([norm(w)]);
+      b.onclick=()=>{if(sentHelp()) speakParts([norm(w)])}; // tapping a word to hear it is part of the help
       $("main").appendChild(b);
     });
     $("pic").textContent=p; $("hint").textContent="";
     $("count").textContent=(iS+1)+" / "+SENTENCES.length;
   }else renderLog();
+  updateListen();
+}
+// The listen button is always there for letters and words, but for sentences only once help is unlocked.
+function updateListen(){
+  const help=tab!=="setn"||sentHelp();
+  $("listen").hidden=!(canSpeak()&&help);
+  $("main").classList.toggle("helped",tab==="setn"&&help);
 }
 
 function renderLog(){
@@ -238,6 +250,7 @@ function renderLog(){
 }
 
 function step(dir){
+  sentFails=0;
   if(tab==="stafir") iL=(iL+dir+LETTERS.length)%LETTERS.length;
   else if(tab==="setn") iS=(iS+dir+SENTENCES.length)%SENTENCES.length;
   else iW=(iW+dir+WORDS.length)%WORDS.length;
@@ -358,10 +371,17 @@ function listenSentence(r){
     try{r.stop()}catch(e){}
     stopMic();
     const missed=words.filter(w=>!heard.has(w));
-    if(!missed.length){$("heard").textContent="Ég heyrði alla setninguna ✔";award()}
-    else if(!heard.size) notYet("Ég heyrði ekkert. Reyndu aftur.");
-    else{btns.forEach(b=>b.classList.toggle("miss",!heard.has(b.dataset.w)));
-         notYet("Næstum! Lestu aftur orðin sem eru ekki græn.")}
+    if(!missed.length){sentFails=0;$("heard").textContent="Ég heyrði alla setninguna ✔";award()}
+    else if(!heard.size) notYet("Ég heyrði ekkert. Reyndu aftur."); // silence isn't counted as a try
+    else{
+      btns.forEach(b=>b.classList.toggle("miss",!heard.has(b.dataset.w)));
+      sentFails++;
+      if(sentFails===HELP_AFTER){
+        notYet("Næstum! Lestu aftur orðin sem eru ekki græn.");
+        $("flash").textContent="Nú máttu hlusta 🔊 – ýttu á Hlusta eða á orð.";
+        updateListen();
+      }else notYet("Næstum! Lestu aftur orðin sem eru ekki græn.");
+    }
   };
   // Beginners pause between words, so wait a good while after each one.
   const wait=ms=>{clearTimeout(timer);timer=setTimeout(finish,ms)};
@@ -411,7 +431,7 @@ if(SR){
 }
 $("prev").onclick=()=>{$("heard").textContent="";stopSpeaking();abortMic();step(-1)};
 $("next").onclick=()=>{$("heard").textContent="";stopSpeaking();abortMic();step(1)};
-document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;$("heard").textContent="";stopSpeaking();abortMic();render()});
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;sentFails=0;$("heard").textContent="";stopSpeaking();abortMic();render()});
 
 // Read-aloud, best voice first:
 // 1) Ready-made clips in audio/ (made once with make_audio.py, or your own recordings) – same voice on every device.
@@ -496,7 +516,7 @@ $("listen").onclick=say;
 function pickVoice(){
   voice=findVoice();
   const ok=canSpeak();
-  $("listen").hidden=!ok;
+  updateListen();
   $("novoice").hidden=ok || !checkedOnce;
   if(ok) $("voicePanel").hidden=true;
   else if(checkedOnce && onlineChecked && !panelDismissed) showVoicePanel();
