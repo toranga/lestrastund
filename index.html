@@ -157,15 +157,41 @@ body{margin:0;font-size:14px}
 <!-- List of ready-made audio clips, written by make_audio.py. If it's missing, the app uses the device's or the online voice. -->
 <script src="audio/clips.js"></script>
 <script>
+// Each letter has a few example words. They take turns: each time she comes back to a letter, the next word shows.
+// make_audio.py reads this list, so new words get audio automatically.
 const LETTERS=[
- ["A","a","api","🐵"],["Á","á","álft","🦢"],["B","b","bíll","🚗"],["D","d","dúkka","🪆"],
- ["Ð","ð","bað","🛁"],["E","e","epli","🍎"],["É","é","ég","🙋"],["F","f","fiskur","🐟"],
- ["G","g","geit","🐐"],["H","h","hestur","🐴"],["I","i","ilmur","🌸"],["Í","í","ís","🍦"],
- ["J","j","jól","🎄"],["K","k","köttur","🐱"],["L","l","lamb","🐑"],["M","m","mús","🐭"],
- ["N","n","nef","👃"],["O","o","ostur","🧀"],["Ó","ó","ólífa","🫒"],["P","p","pera","🍐"],
- ["R","r","rós","🌹"],["S","s","sól","☀️"],["T","t","tré","🌳"],["U","u","ugla","🦉"],
- ["Ú","ú","úr","⌚"],["V","v","vatn","💧"],["X","x","lax","🐟"],["Y","y","yfir","⬆️"],
- ["Ý","ý","ýsa","🐠"],["Þ","þ","þak","🏠"],["Æ","æ","æfing","🤸"],["Ö","ö","önd","🦆"]
+ ["A","a",[["api","🐵"],["ananas","🍍"],["appelsína","🍊"]]],
+ ["Á","á",[["álft","🦢"],["álfur","🧝"],["ávöxtur","🍎"]]],
+ ["B","b",[["bíll","🚗"],["bolti","⚽"],["banani","🍌"],["bátur","⛵"]]],
+ ["D","d",[["dúkka","🪆"],["dreki","🐉"],["diskur","🍽️"]]],
+ ["Ð","ð",[["bað","🛁"],["blað","🍃"],["hreiður","🪺"]]],
+ ["E","e",[["epli","🍎"],["egg","🥚"],["eldur","🔥"]]],
+ ["É","é",[["ég","🙋"],["él","🌨️"]]],
+ ["F","f",[["fiskur","🐟"],["fíll","🐘"],["fugl","🐦"]]],
+ ["G","g",[["geit","🐐"],["gulrót","🥕"],["gítar","🎸"]]],
+ ["H","h",[["hestur","🐴"],["hundur","🐶"],["hjól","🚲"]]],
+ ["I","i",[["ilmur","🌸"],["kisa","🐱"],["rigning","🌧️"]]],
+ ["Í","í",[["ís","🍦"],["ísbjörn","🐻‍❄️"],["íkorni","🐿️"]]],
+ ["J","j",[["jól","🎄"],["jarðarber","🍓"],["jakki","🧥"]]],
+ ["K","k",[["köttur","🐱"],["kaka","🎂"],["kanína","🐰"]]],
+ ["L","l",[["lamb","🐑"],["ljón","🦁"],["lest","🚂"]]],
+ ["M","m",[["mús","🐭"],["mjólk","🥛"],["máni","🌙"]]],
+ ["N","n",[["nef","👃"],["nótt","🌃"],["nammi","🍬"]]],
+ ["O","o",[["ostur","🧀"],["ormur","🪱"],["sokkur","🧦"]]],
+ ["Ó","ó",[["ólífa","🫒"],["óveður","⛈️"],["skór","👟"]]],
+ ["P","p",[["pera","🍐"],["pakki","🎁"],["pabbi","👨"]]],
+ ["R","r",[["rós","🌹"],["refur","🦊"],["regnbogi","🌈"]]],
+ ["S","s",[["sól","☀️"],["snjór","❄️"],["skip","🚢"]]],
+ ["T","t",[["tré","🌳"],["tómatur","🍅"],["tönn","🦷"]]],
+ ["U","u",[["ugla","🦉"],["ungi","🐣"],["ull","🧶"]]],
+ ["Ú","ú",[["úr","⌚"],["úlfur","🐺"],["hús","🏠"]]],
+ ["V","v",[["vatn","💧"],["vettlingur","🧤"],["vélmenni","🤖"]]],
+ ["X","x",[["lax","🐟"],["öxi","🪓"]]],
+ ["Y","y",[["yfir","⬆️"],["lykill","🔑"],["dyr","🚪"]]],
+ ["Ý","ý",[["ýsa","🐠"],["kýr","🐄"],["mýs","🐭"]]],
+ ["Þ","þ",[["þak","🏠"],["þyrla","🚁"],["þrír","3️⃣"]]],
+ ["Æ","æ",[["æfing","🤸"],["ær","🐑"],["lækur","🏞️"]]],
+ ["Ö","ö",[["önd","🦆"],["ör","🏹"],["rör","🥤"]]]
 ];
 const WORDS=[
  ["sól","☀️"],["ís","🍦"],["mús","🐭"],["hús","🏠"],["nef","👃"],["api","🐵"],["úr","⌚"],
@@ -185,6 +211,15 @@ const DAYS=["sun","mán","þri","mið","fim","fös","lau"];
 const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
              set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let state=store.get("lestrarstund",{total:0,days:{}});
+state.rot=state.rot||{}; // which example word each letter showed last
+let pickL=0;             // the example word shown on the current letter card
+// Called whenever a letter card is opened: show the next word in turn and remember it.
+function nextLetterWord(){
+  const [U,,ws]=LETTERS[iL];
+  pickL=(state.rot[U]===undefined?0:state.rot[U]+1)%ws.length;
+  state.rot[U]=pickL; save();
+}
+const letterWord=()=>LETTERS[iL][2][pickL];
 let tab="stafir", iL=0, iW=0, iS=0;
 // Sentences: she reads on her own first. After 3 tries in a row that miss words, the listen help appears.
 const HELP_AFTER=3;
@@ -202,7 +237,7 @@ function render(){
   $("practice").hidden=tab==="dagbok"; $("diary").hidden=tab!=="dagbok";
   $("flash").textContent="";
   if(tab==="stafir"){
-    const [U,l,w,p]=LETTERS[iL];
+    const [U,l]=LETTERS[iL], [w,p]=letterWord();
     $("main").className="big"; $("main").textContent=U+l;
     $("pic").textContent=p;
     $("hint").innerHTML=w.replace(new RegExp(l),"<b>"+l+"</b>");
@@ -251,7 +286,7 @@ function renderLog(){
 
 function step(dir){
   sentFails=0;
-  if(tab==="stafir") iL=(iL+dir+LETTERS.length)%LETTERS.length;
+  if(tab==="stafir"){iL=(iL+dir+LETTERS.length)%LETTERS.length; nextLetterWord()}
   else if(tab==="setn") iS=(iS+dir+SENTENCES.length)%SENTENCES.length;
   else iW=(iW+dir+WORDS.length)%WORDS.length;
   render();
@@ -305,7 +340,7 @@ function tryAgainSound(){
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let rec=null, listening=false;
 const norm=s=>(s||"").toLocaleLowerCase("is").replace(/[^a-záðéíóúýþæö\s]/g," ").replace(/\s+/g," ").trim();
-function target(){return tab==="stafir"?LETTERS[iL][2]:WORDS[iW][0]}
+function target(){return tab==="stafir"?letterWord()[0]:WORDS[iW][0]}
 // Short, soft beep so you know the microphone is on. Listening starts after it, so the beep isn't heard as speech.
 let actx=null;
 function beep(){
@@ -468,7 +503,7 @@ if(SR){
 }
 $("prev").onclick=()=>{$("heard").textContent="";stopSpeaking();abortMic();step(-1)};
 $("next").onclick=()=>{$("heard").textContent="";stopSpeaking();abortMic();step(1)};
-document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;sentFails=0;$("heard").textContent="";stopSpeaking();abortMic();render()});
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{const was=tab; tab=b.dataset.tab; if(tab==="stafir"&&was!=="stafir") nextLetterWord(); sentFails=0;$("heard").textContent="";stopSpeaking();abortMic();render()});
 
 // Read-aloud, best voice first:
 // 1) Ready-made clips in audio/ (made once with make_audio.py, or your own recordings) – same voice on every device.
@@ -543,7 +578,7 @@ function speakParts(parts){
 }
 function say(){
   if(!canSpeak()) return;
-  if(tab==="stafir"){const [U,,w]=LETTERS[iL]; speakParts([NAMES[U], w, w]);}
+  if(tab==="stafir"){const U=LETTERS[iL][0], w=letterWord()[0]; speakParts([NAMES[U], w, w]);}
   else if(tab==="setn") speakParts([SENTENCES[iS][0]]);
   else{const w=WORDS[iW][0]; speakParts([w, w]);}
 }
@@ -650,7 +685,7 @@ try{
   }else{checkedOnce=true;pickVoice()}
 }catch(e){}
 
-showStars(false); render();
+nextLetterWord(); showStars(false); render();
 </script>
 </body>
 </html>

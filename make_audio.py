@@ -27,19 +27,19 @@ from pathlib import Path
 NAMES = {"A":"a","Á":"á","B":"bé","D":"dé","Ð":"eð","E":"e","É":"é","F":"eff","G":"ge","H":"há","I":"i","Í":"í",
          "J":"joð","K":"ká","L":"ell","M":"emm","N":"enn","O":"o","Ó":"ó","P":"pé","R":"err","S":"ess","T":"té",
          "U":"u","Ú":"ú","V":"vaff","X":"ex","Y":"ufsilon i","Ý":"ufsilon í","Þ":"þorn","Æ":"æ","Ö":"ö"}
-LETTER_WORDS = ["api","álft","bíll","dúkka","bað","epli","ég","fiskur","geit","hestur","ilmur","ís","jól","köttur",
-                "lamb","mús","nef","ostur","ólífa","pera","rós","sól","tré","ugla","úr","vatn","lax","yfir","ýsa",
-                "þak","æfing","önd"]
-WORDS = ["sól","ís","mús","hús","nef","api","úr","bók","bað","kýr","tré","rós","lamb","epli",
-         "mamma","pabbi","ég","og","já","nei"]
+# Example words for letters and the word list are read from index.html, like the sentences.
+def _js_list(name):
+    html = Path(__file__).with_name("index.html")
+    if not html.exists(): return []
+    mt = re.search(r"const %s=(\[.*?\]);" % name, html.read_text(encoding="utf-8"), re.S)
+    return json.loads(mt.group(1)) if mt else []
+LETTER_WORDS = [w for row in _js_list("LETTERS") for w, _ in row[2]]
+WORDS = [row[0] for row in _js_list("WORDS")]
 EXTRA = ["Halló"]
 
 # Sentences are read from index.html, so adding one there is enough.
 def sentences():
-    html = Path(__file__).with_name("index.html")
-    if not html.exists(): return []
-    m = re.search(r"const SENTENCES=(\[.*?\]);", html.read_text(encoding="utf-8"), re.S)
-    return [row[0] for row in json.loads(m.group(1))] if m else []
+    return [row[0] for row in _js_list("SENTENCES")]
 
 def norm(text):  # same as norm() in index.html
     return " ".join(re.sub(r"[^a-záðéíóúýþæö\s]", " ", text.lower()).split())

@@ -1,5 +1,5 @@
 # Makes the Icelandic audio clips (audio/*.mp3) with make_audio.py and commits them.
-# Runs when make_audio.py changes, or by hand from the Actions tab.
+# Runs when make_audio.py or the word lists in index.html change, or by hand from the Actions tab.
 # Clips that already exist are kept, so your own recordings are never overwritten.
 name: Búa til hljóðskrár
 on:
@@ -14,7 +14,7 @@ on:
         default: false
   push:
     branches: [main]
-    paths: [make_audio.py, .github/workflows/audio.yml]
+    paths: [make_audio.py, index.html, .github/workflows/audio.yml]
 permissions:
   contents: write
 jobs:
