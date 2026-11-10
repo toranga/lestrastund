@@ -8,8 +8,9 @@ Put the audio folder next to index.html.
 
 Usage (run inside the lestrarstund-web folder):
     pip install requests edge-tts
-    python make_audio.py                 # Tiró first, edge-tts if Tiró fails
-    python make_audio.py --engine edge   # only edge-tts (Guðrún)
+    python make_audio.py                 # Google's Icelandic voice (default)
+    python make_audio.py --engine edge   # Guðrún via edge-tts
+    python make_audio.py --engine auto   # Tiró first, edge-tts if Tiró fails
     python make_audio.py --engine tiro --voice Alfur
     python make_audio.py --list-voices   # show Tiró's voices
     python make_audio.py --force         # remake clips that already exist
@@ -114,7 +115,7 @@ def try_word(word):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--engine", choices=["auto", "tiro", "edge"], default="auto")
+    ap.add_argument("--engine", choices=["google", "auto", "tiro", "edge"], default="google")
     ap.add_argument("--voice", help="Tiró VoiceId, or an Edge voice such as is-IS-GunnarNeural")
     ap.add_argument("--rate", default="-20%", help="edge-tts speed, e.g. -20%% is a little slower")
     ap.add_argument("--out", default="audio")
@@ -152,7 +153,9 @@ def main():
         if p.exists() and not a.force:
             done.append(slug(t)); continue
         try:
-            if engine != "edge" and tiro_voice:
+            if engine == "google":
+                google_say(t, p)
+            elif engine != "edge" and tiro_voice:
                 try:
                     tiro_say(t, tiro_voice, p)
                 except Exception as e:

@@ -8,6 +8,10 @@ on:
       try:
         description: "Orð til að prófa í nokkrum útgáfum (autt = búa til allar hljóðskrár)"
         required: false
+      force:
+        description: "Búa til allar hljóðskrár upp á nýtt (skrifar yfir eigin upptökur)"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: [make_audio.py, .github/workflows/audio.yml]
@@ -23,7 +27,7 @@ jobs:
           python-version: "3.12"
       - run: pip install requests edge-tts
       - run: |
-          if [ -n "${{ inputs.try }}" ]; then python make_audio.py --try "${{ inputs.try }}"; else python make_audio.py; fi
+          if [ -n "${{ inputs.try }}" ]; then python make_audio.py --try "${{ inputs.try }}"; elif [ "${{ inputs.force }}" = "true" ]; then python make_audio.py --force; else python make_audio.py; fi
       - name: Commit clips
         run: |
           git config user.name "github-actions[bot]"
