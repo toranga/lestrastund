@@ -144,6 +144,8 @@ body{margin:0;font-size:14px}
 
 </div>
 
+<!-- List of ready-made audio clips, written by make_audio.py. If it's missing, the app uses the device's or the online voice. -->
+<script src="audio/clips.js"></script>
 <script>
 const LETTERS=[
  ["A","a","api","🐵"],["Á","á","álft","🦢"],["B","b","bíll","🚗"],["D","d","dúkka","🪆"],
@@ -234,7 +236,7 @@ if(SR){
   $("mic").hidden=false;
   $("mic").onclick=()=>{
     if(listening){try{rec.stop()}catch(e){}return}
-    try{speechSynthesis.cancel();stopAudio()}catch(e){}
+    stopSpeaking();
     rec=new SR(); rec.lang="is-IS"; rec.interimResults=false; rec.maxAlternatives=5; rec.continuous=false;
     const want=norm(target());
     let got=false;
@@ -265,15 +267,23 @@ if(SR){
   };
 }
 $("again").onclick=()=>{ $("flash").textContent="Reynum aftur, þú getur þetta!"; if(canSpeak()) say(); };
-$("prev").onclick=()=>{$("heard").textContent="";step(-1)};
-$("next").onclick=()=>{$("heard").textContent="";step(1)};
-document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});
+$("prev").onclick=()=>{$("heard").textContent="";stopSpeaking();step(-1)};
+$("next").onclick=()=>{$("heard").textContent="";stopSpeaking();step(1)};
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;stopSpeaking();render()});
 
-// Read-aloud only if the device has an Icelandic voice.
+// Read-aloud, best voice first:
+// 1) Ready-made clips in audio/ (made once with make_audio.py, or your own recordings) – same voice on every device.
+// 2) The device's own Icelandic voice.
+// 3) Google's Icelandic voice online (e.g. Chrome on a computer). Needs an internet connection.
 // Letters are spoken by their Icelandic names, because voices read a lone capital letter badly.
 const NAMES={A:"a",Á:"á",B:"bé",D:"dé",Ð:"eð",E:"e",É:"é",F:"eff",G:"ge",H:"há",I:"i",Í:"í",J:"joð",K:"ká",L:"ell",
   M:"emm",N:"enn",O:"o",Ó:"ó",P:"pé",R:"err",S:"ess",T:"té",U:"u",Ú:"ú",V:"vaff",X:"ex",Y:"ufsilon i",Ý:"ufsilon í",Þ:"þorn",Æ:"æ",Ö:"ö"};
-const RATE=0.6; // slow and clear for a beginner
+const RATE=0.6; // device voice: slow and clear for a beginner
+const CLIPS=new Set(window.CLIPS||[]);
+const hasClips=CLIPS.size>0;
+// File name for each clip. Must match slug() in make_audio.py.
+const SLUG={"á":"a1","é":"e1","í":"i1","ó":"o1","ú":"u1","ý":"y1","ð":"d1","þ":"th1","æ":"ae1","ö":"o2"," ":"_"};
+function slug(t){let o="";for(const ch of t.toLocaleLowerCase("is")){if(SLUG[ch])o+=SLUG[ch];else if(ch>="a"&&ch<="z")o+=ch}return o}
 let voice=null, panelDismissed=false, checkedOnce=false;
 function findVoice(){
   try{
@@ -283,10 +293,8 @@ function findVoice(){
     return v.sort((a,b)=>rank(b)-rank(a))[0]||null;
   }catch(e){return null}
 }
-// Fallback when the device has no Icelandic voice (e.g. Chrome on a computer):
-// play Google's Icelandic voice as audio clips. Needs an internet connection.
 const ONLINE_RATE=0.8;
-let online=false, onlineChecked=false, clip=null, clipQueue=[];
+let online=false, onlineChecked=false;
 const onlineUrl=t=>"https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=is&q="+encodeURIComponent(t);
 function probeOnline(){
   return new Promise(res=>{
@@ -296,20 +304,50 @@ function probeOnline(){
     a.src=onlineUrl("já"); setTimeout(()=>fin(false),6000);
   });
 }
-function stopAudio(){clipQueue=[];if(clip){try{clip.pause()}catch(e){}clip=null}}
-function playOnline(parts){
-  stopAudio(); clipQueue=parts.slice();
+const canSpeak=()=>hasClips||!!voice||online;
+
+// One audio player for clips and the online voice, so iPads allow every part after the first tap.
+const player=new Audio(); player.preload="auto";
+let playToken=0;
+function stopSpeaking(){
+  playToken++;
+  try{player.pause()}catch(e){}
+  try{speechSynthesis.cancel()}catch(e){}
+}
+function playUrl(url,rate,my,next,fail){
+  player.onended=()=>setTimeout(next,350);
+  player.defaultPlaybackRate=rate; player.src=url; player.playbackRate=rate; player.preservesPitch=true;
+  player.play().catch(()=>{if(my===playToken) fail()});
+}
+function speakOne(t,done){
+  try{
+    const u=new SpeechSynthesisUtterance(t+".");
+    u.voice=voice;u.lang=voice.lang;u.rate=RATE;u.pitch=1.05;
+    u.onend=()=>setTimeout(done,250);
+    speechSynthesis.speak(u);
+  }catch(e){done()}
+}
+// Say each part in turn with a short pause between them.
+function speakParts(parts){
+  stopSpeaking();
+  const my=playToken; let i=0;
   const next=()=>{
-    if(!clipQueue.length){clip=null;return}
-    const a=new Audio(onlineUrl(clipQueue.shift().replace(/\.$/,"")));
-    a.playbackRate=ONLINE_RATE; a.preservesPitch=true; clip=a;
-    a.onended=()=>setTimeout(()=>{if(clip===a) next()},350);
-    a.onerror=()=>{if(clip===a) next()};
-    a.play().catch(()=>{});
+    if(my!==playToken||i>=parts.length) return;
+    const t=parts[i++], s=slug(t);
+    const viaOnline=()=>online?playUrl(onlineUrl(t),ONLINE_RATE,my,next,next):next();
+    const viaDevice=()=>voice?speakOne(t,next):viaOnline();
+    if(CLIPS.has(s)) playUrl("audio/"+s+".mp3",1,my,next,viaDevice);
+    else viaDevice();
   };
   next();
 }
-const canSpeak=()=>!!voice||online;
+function say(){
+  if(!canSpeak()) return;
+  if(tab==="stafir"){const [U,,w]=LETTERS[iL]; speakParts([NAMES[U], w, w]);}
+  else{const w=WORDS[iW][0]; speakParts([w, w]);}
+}
+$("listen").onclick=say;
+
 
 function pickVoice(){
   voice=findVoice();
@@ -396,28 +434,10 @@ $("voiceCheck").onclick=()=>{
     if(canSpeak()){
       $("voicePanel").hidden=true;
       $("flash").textContent="Íslensk rödd fannst! 🔊";
-      speakParts(["Halló."]);
+      speakParts(["Halló"]);
     }else $("voiceStatus").textContent="Engin íslensk rödd fannst enn. Athugaðu nettenginguna eða kláraðu skrefin hér fyrir ofan.";
   },700);
 };
-function speakParts(parts){
-  if(voice){
-    try{
-      stopAudio(); speechSynthesis.cancel();
-      parts.forEach(t=>{
-        const u=new SpeechSynthesisUtterance(t);
-        u.voice=voice;u.lang=voice.lang;u.rate=RATE;u.pitch=1.05;
-        speechSynthesis.speak(u);
-      });
-    }catch(e){}
-  }else if(online) playOnline(parts);
-}
-function say(){
-  if(!canSpeak()) return;
-  if(tab==="stafir"){const [U,,w]=LETTERS[iL]; speakParts([NAMES[U]+".", w+".", w+"."]);}
-  else{const w=WORDS[iW][0]; speakParts([w+".", w+"."]);}
-}
-$("listen").onclick=say;
 // Voices load late on some devices, so wait a moment before saying one is missing.
 probeOnline().then(pickVoice);
 try{

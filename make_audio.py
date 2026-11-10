@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""
+Lestrarstund – generate the Icelandic audio clips once.
+
+Creates audio/<name>.mp3 for every letter name and word the app says, plus
+audio/clips.js, which tells the app which clips exist.
+Put the audio folder next to index.html.
+
+Usage (run inside the lestrarstund-web folder):
+    pip install requests edge-tts
+    python make_audio.py                 # Tiró first, edge-tts if Tiró fails
+    python make_audio.py --engine edge   # only edge-tts (Guðrún)
+    python make_audio.py --engine tiro --voice Alfur
+    python make_audio.py --list-voices   # show Tiró's voices
+    python make_audio.py --force         # remake clips that already exist
+
+To replace a clip with your own recording, save it under the same name in
+audio/ and the app will play it. Run without --force so it isn't overwritten.
+"""
+import argparse, asyncio, json, sys
+from pathlib import Path
+
+# Same lists as in index.html
+NAMES = {"A":"a","Á":"á","B":"bé","D":"dé","Ð":"eð","E":"e","É":"é","F":"eff","G":"ge","H":"há","I":"i","Í":"í",
+         "J":"joð","K":"ká","L":"ell","M":"emm","N":"enn","O":"o","Ó":"ó","P":"pé","R":"err","S":"ess","T":"té",
+         "U":"u","Ú":"ú","V":"vaff","X":"ex","Y":"ufsilon i","Ý":"ufsilon í","Þ":"þorn","Æ":"æ","Ö":"ö"}
+LETTER_WORDS = ["api","álft","bíll","dúkka","bað","epli","ég","fiskur","geit","hestur","ilmur","ís","jól","köttur",
+                "lamb","mús","nef","ostur","ólífa","pera","rós","sól","tré","ugla","úr","vatn","lax","yfir","ýsa",
+                "þak","æfing","önd"]
+WORDS = ["sól","ís","mús","hús","nef","api","úr","bók","bað","kýr","tré","rós","lamb","epli",
+         "mamma","pabbi","ég","og","já","nei"]
+EXTRA = ["Halló"]
+
+# File name for each clip. Must match slug() in index.html.
+MAP = {"á":"a1","é":"e1","í":"i1","ó":"o1","ú":"u1","ý":"y1","ð":"d1","þ":"th1","æ":"ae1","ö":"o2"," ":"_"}
+def slug(text):
+    out = ""
+    for ch in text.lower():
+        if ch in MAP: out += MAP[ch]
+        elif "a" <= ch <= "z": out += ch
+    return out
+
+TIRO = "https://tts.tiro.is/v0"
+TIRO_PREFERRED = ["Dilja_v2", "Dilja", "Alfur_v2", "Alfur"]
+
+def tiro_voices():
+    import requests
+    r = requests.get(TIRO + "/voices", timeout=20)
+    r.raise_for_status()
+    return r.json()
+
+def tiro_pick(wanted):
+    ids = [v.get("VoiceId") for v in tiro_voices()]
+    if wanted:
+        if wanted not in ids:
+            sys.exit(f"Tiró has no voice '{wanted}'. Choose one of: {', '.join(ids)}")
+        return wanted
+    for v in TIRO_PREFERRED:
+        if v in ids: return v
+    return ids[0]
+
+def tiro_say(text, voice, path):
+    import requests
+    body = {"Engine": "standard", "LanguageCode": "is-IS", "OutputFormat": "mp3", "SampleRate": "22050",
+            "Text": text, "TextType": "text", "VoiceId": voice}
+    r = requests.post(TIRO + "/speech", json=body, timeout=60)
+    r.raise_for_status()
+    if len(r.content) < 500:
+        raise RuntimeError("audio too short")
+    path.write_bytes(r.content)
+
+def edge_say(text, voice, rate, path):
+    import edge_tts
+    asyncio.run(edge_tts.Communicate(text, voice, rate=rate).save(str(path)))
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--engine", choices=["auto", "tiro", "edge"], default="auto")
+    ap.add_argument("--voice", help="Tiró VoiceId, or an Edge voice such as is-IS-GunnarNeural")
+    ap.add_argument("--rate", default="-20%", help="edge-tts speed, e.g. -20%% is a little slower")
+    ap.add_argument("--out", default="audio")
+    ap.add_argument("--force", action="store_true")
+    ap.add_argument("--list-voices", action="store_true")
+    a = ap.parse_args()
+
+    if a.list_voices:
+        for v in tiro_voices():
+            print(v.get("VoiceId"), "-", v.get("Gender"), v.get("LanguageName", ""))
+        return
+
+    texts = list(dict.fromkeys(list(NAMES.values()) + LETTER_WORDS + WORDS + EXTRA))
+    out = Path(a.out); out.mkdir(exist_ok=True)
+
+    engine, tiro_voice = a.engine, None
+    if engine in ("auto", "tiro"):
+        try:
+            tiro_voice = tiro_pick(a.voice if engine == "tiro" else None)
+            print(f"Using Tiró, voice {tiro_voice}")
+        except Exception as e:
+            if engine == "tiro": sys.exit(f"Tiró is not answering: {e}")
+            print(f"Tiró is not answering ({e}), using edge-tts instead")
+            engine = "edge"
+    edge_voice = a.voice if (a.engine == "edge" and a.voice) else "is-IS-GudrunNeural"
+
+    done, failed = [], []
+    for t in texts:
+        p = out / (slug(t) + ".mp3")
+        if p.exists() and not a.force:
+            done.append(slug(t)); continue
+        try:
+            if engine != "edge" and tiro_voice:
+                try:
+                    tiro_say(t, tiro_voice, p)
+                except Exception as e:
+                    if a.engine == "tiro": raise
+                    print(f"  Tiró failed on '{t}' ({e}), trying edge-tts")
+                    edge_say(t, edge_voice, a.rate, p)
+            else:
+                edge_say(t, edge_voice, a.rate, p)
+            print(f"  ✓ {t:12} → {p.name}")
+            done.append(slug(t))
+        except Exception as e:
+            print(f"  ✗ {t}: {e}")
+            failed.append(t)
+
+    (out / "clips.js").write_text("window.CLIPS=" + json.dumps(sorted(set(done))) + ";\n", encoding="utf-8")
+    print(f"\n{len(done)} clips ready in {out}/", "" if not failed else f"– failed: {', '.join(failed)}")
+
+if __name__ == "__main__":
+    main()
