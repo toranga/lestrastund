@@ -293,6 +293,7 @@ function findVoice(){
     return v.sort((a,b)=>rank(b)-rank(a))[0]||null;
   }catch(e){return null}
 }
+const CLIP_RATE=0.8;   // ready-made clips: 20% slower, same pitch
 const ONLINE_RATE=0.8;
 let online=false, onlineChecked=false;
 const onlineUrl=t=>"https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=is&q="+encodeURIComponent(t);
@@ -316,7 +317,7 @@ function stopSpeaking(){
 }
 function playUrl(url,rate,my,next,fail){
   player.onended=()=>setTimeout(next,350);
-  player.defaultPlaybackRate=rate; player.src=url; player.playbackRate=rate; player.preservesPitch=true;
+  player.defaultPlaybackRate=rate; player.src=url; player.playbackRate=rate; player.preservesPitch=true; player.webkitPreservesPitch=true; // keep the voice's pitch when slowed
   player.play().catch(()=>{if(my===playToken) fail()});
 }
 function speakOne(t,done){
@@ -336,7 +337,7 @@ function speakParts(parts){
     const t=parts[i++], s=slug(t);
     const viaOnline=()=>online?playUrl(onlineUrl(t),ONLINE_RATE,my,next,next):next();
     const viaDevice=()=>voice?speakOne(t,next):viaOnline();
-    if(CLIPS.has(s)) playUrl("audio/"+s+".mp3",1,my,next,viaDevice);
+    if(CLIPS.has(s)) playUrl("audio/"+s+".mp3",CLIP_RATE,my,next,viaDevice);
     else viaDevice();
   };
   next();
