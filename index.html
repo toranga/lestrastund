@@ -222,11 +222,26 @@ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let rec=null, listening=false;
 const norm=s=>(s||"").toLocaleLowerCase("is").replace(/[^a-záðéíóúýþæö\s]/g," ").replace(/\s+/g," ").trim();
 function target(){return tab==="stafir"?LETTERS[iL][2]:WORDS[iW][0]}
+// Short, soft beep so you know the microphone is on. Listening starts after it, so the beep isn't heard as speech.
+let actx=null;
+function beep(){
+  return new Promise(done=>{
+    try{
+      actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+      if(actx.state==="suspended") actx.resume();
+      const t=actx.currentTime, o=actx.createOscillator(), g=actx.createGain();
+      o.type="sine"; o.frequency.setValueAtTime(660,t); o.frequency.linearRampToValueAtTime(990,t+0.12);
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.25,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t+0.2);
+      setTimeout(done,250);
+    }catch(e){done()}
+  });
+}
 function stopMic(){listening=false;$("mic").classList.remove("on");$("mic").textContent="🎤 Hlustaðu á mig"}
 if(SR){
   $("mic").hidden=false;
   $("mic").onclick=()=>{
-    if(listening){try{rec.stop()}catch(e){}return}
+    if(listening){try{rec.stop()}catch(e){}stopMic();return}
     stopSpeaking();
     rec=new SR(); rec.lang="is-IS"; rec.interimResults=false; rec.maxAlternatives=5; rec.continuous=false;
     const want=norm(target());
@@ -254,7 +269,7 @@ if(SR){
     $("heard").textContent=tab==="stafir"?"Segðu orðið: "+target():"";
     $("flash").textContent="";
     listening=true;$("mic").classList.add("on");$("mic").textContent="👂 Ég er að hlusta…";
-    try{rec.start()}catch(e){stopMic()}
+    beep().then(()=>{if(listening){try{rec.start()}catch(e){stopMic()}}});
   };
 }
 $("prev").onclick=()=>{$("heard").textContent="";stopSpeaking();step(-1)};
