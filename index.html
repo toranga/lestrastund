@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Fredoka:wght@500;600&display=swap">
 <style>
-/* Layout: one big reading card in the middle, three chunky tabs above, grown-up buttons below. Fjord blue + egg-yolk yellow, like a winter morning in Reykjavík. */
+/* Layout: one big reading card in the middle, three chunky tabs above, the microphone button below. Fjord blue + egg-yolk yellow, like a winter morning in Reykjavík. */
 :root{
   --bg:#eef4f8; --card:#ffffff; --ink:#1d3247; --soft:#5d7186;
   --fjord:#2a6fb0; --yolk:#ffc93c; --yolk-ink:#4a3600;
@@ -52,9 +52,6 @@ h1{font-family:var(--f-display);font-weight:600;font-size:1.8rem;margin:0;color:
 .btn:focus-visible,.tabs button:focus-visible,.day:focus-visible{outline:3px solid var(--yolk);outline-offset:3px}
 .arrow{background:var(--bg);color:var(--ink);font-size:1.6rem;min-width:64px}
 .listen{background:var(--bg);color:var(--fjord)}
-.grown{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
-.good{background:var(--good);color:#fff}
-.again{background:var(--again);color:#fff}
 .note{font-size:.95rem;color:var(--soft);text-align:center;max-width:42ch;margin:0 auto}
 .flash{font-family:var(--f-display);font-size:1.4rem;min-height:1.8rem;text-align:center}
 
@@ -129,17 +126,12 @@ body{margin:0;font-size:14px}
     <div class="flash" id="flash" aria-live="polite"></div>
     <button class="btn mic" id="mic" hidden>🎤 Hlustaðu á mig</button>
     <div class="heard" id="heard" aria-live="polite"></div>
-    <div class="grown">
-      <button class="btn good" id="good">Rétt!</button>
-      <button class="btn again" id="again">Reynum aftur</button>
-    </div>
-    <p class="note">Fyrir foreldri: hún les upphátt og þú ýtir á hnappinn.</p>
   </section>
 
   <section class="stage" id="diary" hidden>
     <div class="hint">Las ég í dag? Ýttu á daginn.</div>
     <div class="log" id="log"></div>
-    <p class="note">Stjörnurnar fyrir hvern dag koma sjálfkrafa þegar ýtt er á „Rétt!“.</p>
+    <p class="note">Stjörnurnar fyrir hvern dag koma sjálfkrafa þegar orðið er lesið rétt.</p>
   </section>
 
 </div>
@@ -223,10 +215,9 @@ function award(){
   $("flash").textContent=praise[Math.floor(Math.random()*praise.length)]+" ⭐";
   setTimeout(()=>{$("heard").textContent="";step(1)},1100);
 }
-$("good").onclick=award;
 
 // Microphone check (Chrome's speech recognition, Icelandic).
-// It checks whether the right word was heard; the parent's buttons still have the final say.
+// It checks whether the right word was heard and gives a star when it was.
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let rec=null, listening=false;
 const norm=s=>(s||"").toLocaleLowerCase("is").replace(/[^a-záðéíóúýþæö\s]/g," ").replace(/\s+/g," ").trim();
@@ -266,7 +257,6 @@ if(SR){
     try{rec.start()}catch(e){stopMic()}
   };
 }
-$("again").onclick=()=>{ $("flash").textContent="Reynum aftur, þú getur þetta!"; if(canSpeak()) say(); };
 $("prev").onclick=()=>{$("heard").textContent="";stopSpeaking();step(-1)};
 $("next").onclick=()=>{$("heard").textContent="";stopSpeaking();step(1)};
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;stopSpeaking();render()});
