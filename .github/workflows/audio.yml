@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests edge-tts
+      - run: pip install requests edge-tts piper-tts lameenc
       - run: |
           if [ -n "${{ inputs.try }}" ]; then python make_audio.py --try "${{ inputs.try }}"; elif [ "${{ inputs.force }}" = "true" ]; then python make_audio.py --force; else python make_audio.py; fi
       - name: Commit clips

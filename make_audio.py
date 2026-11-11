@@ -8,7 +8,9 @@ Put the audio folder next to index.html.
 
 Usage (run inside the lestrarstund-web folder):
     pip install requests edge-tts
-    python make_audio.py                 # Google's Icelandic voice (default)
+    pip install piper-tts lameenc        # for the default Ugla voice
+    python make_audio.py                 # Ugla (Piper, Icelandic female voice) – the default
+    python make_audio.py --engine google # Google's Icelandic voice
     python make_audio.py --engine edge   # Guðrún via edge-tts
     python make_audio.py --engine auto   # Tiró first, edge-tts if Tiró fails
     python make_audio.py --engine tiro --voice Alfur
@@ -86,6 +88,41 @@ def edge_say(text, voice, rate, path):
     import edge_tts
     asyncio.run(edge_tts.Communicate(text, voice, rate=rate).save(str(path)))
 
+# Ugla: open-source Icelandic voice for the Piper engine (trained on the Talrómur recordings).
+# Runs offline; the model (~60 MB) is downloaded once into ~/.cache/piper.
+PIPER_BASE = "https://huggingface.co/rhasspy/piper-voices/resolve/main/is/is_IS/{name}/{quality}/is_IS-{name}-{quality}.onnx"
+_piper = {}
+def piper_voice(name="ugla", quality="medium"):
+    key = (name, quality)
+    if key not in _piper:
+        import requests
+        from piper import PiperVoice
+        cache = Path.home() / ".cache" / "piper"; cache.mkdir(parents=True, exist_ok=True)
+        onnx = cache / f"is_IS-{name}-{quality}.onnx"
+        for url, dest in [(PIPER_BASE.format(name=name, quality=quality), onnx),
+                          (PIPER_BASE.format(name=name, quality=quality) + ".json", Path(str(onnx) + ".json"))]:
+            if not dest.exists():
+                print(f"Downloading {dest.name} …")
+                r = requests.get(url, timeout=300); r.raise_for_status(); dest.write_bytes(r.content)
+        _piper[key] = PiperVoice.load(str(onnx))
+    return _piper[key]
+
+def piper_say(text, path, name="ugla"):
+    import io, wave, lameenc
+    voice = piper_voice(name)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        if hasattr(voice, "synthesize_wav"): voice.synthesize_wav(text, wf)   # piper-tts 1.3+
+        else: voice.synthesize(text, wf)                                     # older piper-tts
+    buf.seek(0)
+    with wave.open(buf, "rb") as wf:
+        rate, ch, pcm = wf.getframerate(), wf.getnchannels(), wf.readframes(wf.getnframes())
+    enc = lameenc.Encoder()
+    enc.set_bit_rate(64); enc.set_in_sample_rate(rate); enc.set_channels(ch); enc.set_quality(2)
+    data = enc.encode(pcm) + enc.flush()
+    if len(data) < 500: raise RuntimeError("audio too short")
+    path.write_bytes(data)
+
 def google_say(text, path):
     import requests, urllib.parse
     url = ("https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=is&q="
@@ -101,6 +138,7 @@ def try_word(word):
     out = Path("candidates"); out.mkdir(exist_ok=True)
     cap = word[:1].upper() + word[1:] + "."
     variants = [
+        ("Ugla (Piper)",         lambda p: piper_say(word, p)),
         ("Guðrún, eins og núna", lambda p: edge_say(word, "is-IS-GudrunNeural", "-20%", p)),
         (f"Guðrún, „{cap}“",     lambda p: edge_say(cap, "is-IS-GudrunNeural", "-20%", p)),
         ("Guðrún, venjulegur hraði", lambda p: edge_say(word, "is-IS-GudrunNeural", "+0%", p)),
@@ -125,7 +163,7 @@ def try_word(word):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--engine", choices=["google", "auto", "tiro", "edge"], default="google")
+    ap.add_argument("--engine", choices=["piper", "google", "auto", "tiro", "edge"], default="piper")
     ap.add_argument("--voice", help="Tiró VoiceId, or an Edge voice such as is-IS-GunnarNeural")
     ap.add_argument("--rate", default="-20%", help="edge-tts speed, e.g. -20%% is a little slower")
     ap.add_argument("--out", default="audio")
@@ -165,7 +203,9 @@ def main():
         if p.exists() and not a.force:
             done.append(slug(t)); continue
         try:
-            if engine == "google":
+            if engine == "piper":
+                piper_say(t, p, a.voice or "ugla")
+            elif engine == "google":
                 google_say(t, p)
             elif engine != "edge" and tiro_voice:
                 try:
